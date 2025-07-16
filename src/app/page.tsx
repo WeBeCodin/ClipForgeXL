@@ -7,8 +7,6 @@ import { VideoUploader } from "@/components/clipforge/VideoUploader";
 import { Editor } from "@/components/clipforge/Editor";
 import { Hotspot, Selection, TranscriptWord } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
-import { suggestHotspots } from "@/ai/flows/suggest-hotspots";
-import { generateBackground } from "@/ai/flows/generate-background";
 
 // Mock data until real transcription is implemented
 const MOCK_TRANSCRIPT: TranscriptWord[] = [
@@ -109,12 +107,13 @@ export default function Home() {
   const handleSuggestHotspots = async () => {
     setIsSuggesting(true);
     try {
-      const transcriptText = transcript.map(t => t.word).join(' ');
-      const result = await suggestHotspots({ transcript: transcriptText });
-      setHotspots(result.clips);
+      // const transcriptText = transcript.map(t => t.word).join(' ');
+      // const result = await suggestHotspots({ transcript: transcriptText });
+      // setHotspots(result.clips);
       toast({
-        title: "AI Hotspots Generated",
-        description: "Click on a suggestion to jump to that part of the video.",
+        title: "AI Hotspot Suggestions",
+        description: "This feature is not yet implemented.",
+        variant: "destructive"
       });
     } catch (error) {
       console.error(error);
@@ -151,12 +150,13 @@ export default function Home() {
     setIsGenerating(true);
     setGeneratedBackground(null);
     try {
-      const originalFrameDataUri = await captureFrame(videoRef.current, selection.start);
-      const result = await generateBackground({ prompt, originalFrameDataUri });
-      setGeneratedBackground(result.generatedBackgroundDataUri);
+      // const originalFrameDataUri = await captureFrame(videoRef.current, selection.start);
+      // const result = await generateBackground({ prompt, originalFrameDataUri });
+      // setGeneratedBackground(result.generatedBackgroundDataUri);
       toast({
-        title: "AI Background Generated!",
-        description: "Check out the new scene for your clip.",
+        title: "AI Background Generation",
+        description: "This feature is not yet implemented.",
+        variant: "destructive"
       });
     } catch (error) {
       console.error(error);
