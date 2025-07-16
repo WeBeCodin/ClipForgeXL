@@ -11,8 +11,6 @@ type EditorProps = {
   hotspots: Hotspot[];
   selection: Selection | null;
   setSelection: (selection: Selection | null) => void;
-  handleSuggestHotspots: () => Promise<void>;
-  handleGenerateBackground: (prompt: string) => Promise<void>;
   isSuggesting: boolean;
   isGenerating: boolean;
   generatedBackground: string | null;
@@ -28,8 +26,6 @@ export function Editor({
   hotspots,
   selection,
   setSelection,
-  handleSuggestHotspots,
-  handleGenerateBackground,
   isSuggesting,
   isGenerating,
   generatedBackground,
@@ -38,7 +34,7 @@ export function Editor({
   setIsPlaying
 }: EditorProps) {
   return (
-    <div className="flex-1 grid md:grid-cols-2 lg:grid-cols-3 gap-6 p-4 md:p-6 lg:p-8 h-[calc(100vh-4rem)]">
+    <div className="flex-1 grid md:grid-cols-2 lg:grid-cols-3 gap-6 p-4 md:p-6 lg:p-8 h-[calc(100vh-4rem-110px)]">
       <div className="lg:col-span-2 flex flex-col gap-4">
         <VideoPlayer
           videoUrl={videoUrl}
@@ -58,8 +54,6 @@ export function Editor({
       </div>
       <ClippingControls
         selection={selection}
-        handleSuggestHotspots={handleSuggestHotspots}
-        handleGenerateBackground={handleGenerateBackground}
         isSuggesting={isSuggesting}
         isGenerating={isGenerating}
         generatedBackground={generatedBackground}

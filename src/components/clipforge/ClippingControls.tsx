@@ -7,11 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Selection, TranscriptWord } from "@/lib/types";
 import { Sparkles, Scissors, Loader2, Wand2 } from "lucide-react";
 import Image from "next/image";
+import { useToast } from "@/hooks/use-toast";
 
 type ClippingControlsProps = {
   selection: Selection | null;
-  handleSuggestHotspots: () => Promise<void>;
-  handleGenerateBackground: (prompt: string) => Promise<void>;
   isSuggesting: boolean;
   isGenerating: boolean;
   generatedBackground: string | null;
@@ -21,8 +20,6 @@ type ClippingControlsProps = {
 
 export function ClippingControls({
   selection,
-  handleSuggestHotspots,
-  handleGenerateBackground,
   isSuggesting,
   isGenerating,
   generatedBackground,
@@ -30,6 +27,23 @@ export function ClippingControls({
   videoRef
 }: ClippingControlsProps) {
   const [prompt, setPrompt] = useState("");
+  const { toast } = useToast();
+
+  const handleSuggestHotspots = async () => {
+    toast({
+      title: "Feature Not Implemented",
+      description: "AI Hotspot suggestions will be added in a future step.",
+      variant: "destructive"
+    });
+  };
+
+  const handleGenerateBackground = async (prompt: string) => {
+     toast({
+      title: "Feature Not Implemented",
+      description: "AI background generation will be added in a future step.",
+      variant: "destructive"
+    });
+  };
   
   const getSelectedText = () => {
     if (!selection) return "";
