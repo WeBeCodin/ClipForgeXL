@@ -47,7 +47,7 @@ const MOCK_TRANSCRIPT: TranscriptWord[] = [
   { start: 12.8, end: 13, word: "new", punctuated_word: "new" },
   { start: 13, end: 13.8, word: "backgrounds.", punctuated_word: "backgrounds." },
 ];
-const DEMO_VIDEO_URL = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+const DEMO_VIDEO_URL = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
 type AppState = "idle" | "uploading" | "processing" | "ready";
 
