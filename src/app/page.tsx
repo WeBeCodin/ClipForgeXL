@@ -7,10 +7,6 @@ import { VideoUploader } from "@/components/clipforge/VideoUploader";
 import { Editor } from "@/components/clipforge/Editor";
 import { Hotspot, Selection, TranscriptWord } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { auth, db } from "@/lib/firebase";
-import { signInAnonymously, onAuthStateChanged, User } from "firebase/auth";
-import { doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
 
 
 const DEMO_VIDEO_URL = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
@@ -44,22 +40,9 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // States for Firebase testing
-  const [user, setUser] = useState<User | null>(null);
-  const [testDocContent, setTestDocContent] = useState<string | null>(null);
-  const [isTestingDb, setIsTestingDb] = useState(false);
-
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
   
-  // Listen for auth state changes
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
-
   const handleFileSelect = (file: File) => {
     setAppState("uploading");
     const url = URL.createObjectURL(file);
@@ -97,52 +80,6 @@ export default function Home() {
      }, 1000)
   }
 
-  const handleAnonymousSignIn = async () => {
-    try {
-      await signInAnonymously(auth);
-      toast({ title: "Authentication Success", description: "Signed in anonymously." });
-    } catch (error) {
-      console.error("Anonymous sign-in error:", error);
-      toast({ variant: "destructive", title: "Authentication Failed", description: "Could not sign in." });
-    }
-  };
-
-  const handleDbTest = async () => {
-    if (!user) {
-      toast({ variant: "destructive", title: "Not Authenticated", description: "Please sign in first." });
-      return;
-    }
-    setIsTestingDb(true);
-    setTestDocContent(null);
-    try {
-      const testDocRef = doc(db, "test_collection", user.uid);
-      const testData = {
-        message: "Hello from ClipForge!",
-        timestamp: Timestamp.now(),
-      };
-      
-      // Write document
-      await setDoc(testDocRef, testData);
-      
-      // Read document
-      const docSnap = await getDoc(testDocRef);
-      
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setTestDocContent(`Read back: "${data.message}" at ${data.timestamp.toDate().toLocaleTimeString()}`);
-        toast({ title: "Firestore Test Success", description: "Wrote and read a document." });
-      } else {
-        throw new Error("Document not found after writing.");
-      }
-    } catch (error) {
-      console.error("Firestore test error:", error);
-      toast({ variant: "destructive", title: "Firestore Test Failed", description: "Check the console for errors." });
-      setTestDocContent("Test failed. See console for details.");
-    } finally {
-      setIsTestingDb(false);
-    }
-  };
-  
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -160,24 +97,6 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       <Header />
-
-      {/* --- PRD Step 3 Test Panel --- */}
-      <div className="p-4 bg-yellow-900/50 border-b border-yellow-700 text-sm">
-        <h3 className="font-bold text-lg mb-2 text-yellow-300">PRD Step 3: Firebase Integration Test</h3>
-        <div className="flex items-center gap-4">
-          <Button onClick={handleAnonymousSignIn} disabled={!!user}>
-            {user ? "Signed In" : "1. Authenticate Anonymously"}
-          </Button>
-          <Button onClick={handleDbTest} disabled={!user || isTestingDb}>
-            2. Write & Read Test Document
-          </Button>
-          <div className="flex flex-col">
-            <span className="font-mono text-xs text-muted-foreground">{user ? `User ID: ${user.uid}` : "Not signed in."}</span>
-            <span className="font-mono text-xs text-yellow-400">{testDocContent ?? "Firestore test not run."}</span>
-          </div>
-        </div>
-      </div>
-      {/* --- End Test Panel --- */}
 
       <main className="flex-1 flex flex-col">
         {appState === "ready" && videoUrl ? (
