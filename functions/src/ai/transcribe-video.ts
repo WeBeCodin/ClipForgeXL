@@ -1,6 +1,6 @@
 
 // functions/src/ai/transcribe-video.ts
-import { GoogleGenAI, Part, FileState, File } from "@google/genai";
+import { GoogleGenAI, FileState, File } from "@google/genai";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -31,9 +31,8 @@ export async function transcribeVideo(bucketName: string, filePath: string): Pro
 
     // Step 2: Upload the local file to the Gemini File API
     console.log(`Uploading ${tempFilePath} to the Gemini File API...`);
- fileUploadResponse = await genAI.files.upload({
-      file: tempFilePath,
-      mimeType: "video/mp4", // Example MIME type. This should match the actual file type.
+    fileUploadResponse = await genAI.files.upload({
+        file: tempFilePath,
     });
     console.log(`Upload complete. File API Name: ${fileUploadResponse.name}, URI: ${fileUploadResponse.uri}`);
 
@@ -41,6 +40,10 @@ export async function transcribeVideo(bucketName: string, filePath: string): Pro
     console.log(`Polling for file to become active. This may take a few minutes...`);
     let attempts = 0;
     let geminiFile;
+
+    if (!fileUploadResponse?.name) {
+        throw new Error("File upload failed, no name returned.");
+    }
 
     while(attempts < MAX_POLLING_ATTEMPTS) {
         const file: File = await genAI.files.get({ name: fileUploadResponse.name });
@@ -67,19 +70,24 @@ export async function transcribeVideo(bucketName: string, filePath: string): Pro
 
     // Correctly call generateContent on the 'models' submodule
     const result = await genAI.models.generateContent({
-      model: "gemini-1.5-pro-latest",
- contents: [
- prompt,
-        {
-            fileData: {
-                mimeType: geminiFile.mimeType,
-                fileUri: geminiFile.uri,
+        model: "gemini-1.5-pro-latest",
+        contents: [
+            {
+                role: "user",
+                parts: [
+                    { text: prompt },
+                    {
+                        fileData: {
+                            mimeType: geminiFile.mimeType,
+                            fileUri: geminiFile.uri,
+                        },
+                    },
+                ],
             },
-        },
- ],
+        ],
     });
 
-    const transcription = result.text();
+    const transcription = result.response.text();
     console.log("Transcription generation completed successfully.");
  
     if (transcription === undefined) {
