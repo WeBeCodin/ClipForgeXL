@@ -1,3 +1,4 @@
+
 // functions/src/ai/transcribe-video.ts
 
 import { GoogleGenAI, FileState } from "@google/genai";
