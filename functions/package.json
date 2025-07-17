@@ -11,14 +11,14 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.15.0",
+    "@google/genai": "^1.10.0",
     "firebase-admin": "^12.1.1",
     "firebase-functions": "^5.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.2",
+    "firebase-functions-test": "^3.3.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5",
-    "firebase-functions-test": "^3.3.0"
+    "typescript": "^5"
   }
 }

@@ -1,44 +1,35 @@
-// To run this test script:
-// 1. Make sure you are in the 'functions' directory in your terminal.
-// 2. Run 'npm install' to install dependencies.
-// 3. Set your GEMINI_API_KEY as an environment variable:
-//    export GEMINI_API_KEY="your_api_key_here"
-// 4. Update the GCS_URI_TO_TEST with a real GCS URI to a video file.
-//    (e.g., "gs://your-bucket-name/your-video.mp4")
-// 5. Run the script using: npx ts-node src/ai/test-transcription.ts
+// /functions/src/ai/test-transcription.ts
 
 import { transcribeVideo } from "./transcribe-video";
 
-// --- CONFIGURATION ---
-// IMPORTANT: Replace this with a real GCS URI of a video in your bucket.
-// The video should be in a bucket that your Gemini API key has access to.
-const GCS_URI_TO_TEST = "gs://your-bucket/your-video.mp4"; 
-// ---------------------
+// IMPORTANT: Update this with a real GCS URI to a video file in your bucket.
+const GCS_URI_TO_TEST = "gs://clipforge-xl.firebasestorage.app/like mike test.mp4";
 
-
+// --- TEST EXECUTION ---
 async function runTest() {
+  console.log(`Testing transcription for: ${GCS_URI_TO_TEST}`);
+
   if (!process.env.GEMINI_API_KEY) {
-    console.error("\nERROR: GEMINI_API_KEY environment variable is not set.");
-    console.error("Please set it before running the test, e.g., export GEMINI_API_KEY=\"your_api_key_here\"\n");
-    process.exit(1);
+    console.error("❌ ERROR: GEMINI_API_KEY environment variable is not set.");
+    return;
   }
 
   if (GCS_URI_TO_TEST.includes("your-bucket")) {
-     console.error("\nERROR: Please update the GCS_URI_TO_TEST in `functions/src/ai/test-transcription.ts` to a real Google Cloud Storage URI.\n");
-    process.exit(1);
+    console.error("❌ ERROR: Please update GCS_URI_TO_TEST with a real GCS URI.");
+    return;
   }
-  
-  console.log(`Testing transcription for: ${GCS_URI_TO_TEST}`);
+
+  const [bucketName,...filePathParts] = GCS_URI_TO_TEST.replace("gs://", "").split("/");
+  const filePath = filePathParts.join("/");
 
   try {
-    const transcript = await transcribeVideo(GCS_URI_TO_TEST);
-    console.log("\n✅ Transcription Successful!\n");
-    console.log("--- Transcript ---");
+    const transcript = await transcribeVideo(bucketName, filePath);
+    console.log("\n--- TRANSCRIPTION RESULT ---");
     console.log(transcript);
-    console.log("------------------\n");
+    console.log("\n✅ Transcription Succeeded.");
   } catch (error) {
-    console.error("\n❌ Transcription Failed.\n");
-    console.error("Error:", error);
+    console.error("\n❌ Transcription Failed.");
+    // The detailed error is already logged inside transcribeVideo
   }
 }
 
