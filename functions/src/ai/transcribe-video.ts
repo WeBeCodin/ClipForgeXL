@@ -1,7 +1,7 @@
 // functions/src/ai/transcribe-video.ts - CORRECTED IMPLEMENTATION
 
 // 1. Correct the import to use the new, recommended SDK
-import { GoogleGenAI, Part } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -39,11 +39,11 @@ export async function transcribeVideo(bucketName: string, filePath: string): Pro
     console.log(`Upload complete. File API Name: ${geminiFile.name}, URI: ${geminiFile.uri}`);
 
     // 3. Generate content using the File API URI
-    const model = genAI.models.get({ model: 'gemini-1.5-pro-latest' });
+    const model = await genAI.models.get({ model: 'gemini-1.5-pro-latest' });
     const prompt = "Transcribe the audio from this video, including timestamps.";
 
     console.log("Requesting transcription from Gemini model...");
-    const result = await (await model).generateContent([prompt, geminiFile]);
+    const result = await ((await model) as any).generateContent([prompt, geminiFile]); // Await the model promise and cast to any for now
     const response = result.response;
     const transcription = response.text();
     console.log("Transcription generation completed successfully.");
