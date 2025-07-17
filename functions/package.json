@@ -11,7 +11,7 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
-    "@google/genai": "^1.10.0",
+    "@google/genai": "^0.2.1",
     "firebase-admin": "^12.1.1",
     "firebase-functions": "^5.0.1"
   },
