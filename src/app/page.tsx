@@ -7,36 +7,36 @@ import { VideoUploader } from "@/components/clipforge/VideoUploader";
 import { Editor } from "@/components/clipforge/Editor";
 import { Hotspot, Selection, TranscriptWord } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { app, auth, db } from "@/lib/firebase"; // Import Firebase
+import { app, auth, db, storage } from "@/lib/firebase";
 import { signInAnonymously, onAuthStateChanged, User } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { v4 as uuidv4 } from 'uuid';
 
 
-const DEMO_VIDEO_URL = "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+function parseTranscript(text: string): TranscriptWord[] {
+  // This is a placeholder parser. A real implementation would be more complex
+  // and would need word-level timestamps from the transcription API if available.
+  // For now, we split by space and assign arbitrary even durations.
+  const words = text.split(/\s+/);
+  let currentTime = 0;
+  return words.map((word, index) => {
+    const start = currentTime;
+    const end = start + 0.5; // Arbitrary duration
+    currentTime = end + 0.1; // Arbitrary gap
+    return {
+      word: word.replace(/[.,!?]/g, ''),
+      punctuated_word: word,
+      start,
+      end,
+    };
+  });
+}
 
-// Mock data until real transcription is implemented
-const MOCK_TRANSCRIPT: TranscriptWord[] = [
-  { start: 0.5, end: 0.9, word: "So", punctuated_word: "So," },
-  { start: 0.9, end: 1.2, word: "what", punctuated_word: "what" },
-  { start: 1.2, end: 1.4, word: "we're", punctuated_word: "we're" },
-  { start: 1.4, end: 1.7, word: "going", punctuated_word: "going" },
-  { start: 1.7, end: 1.9, word: "to", punctuated_word: "to" },
-  { start: 1.9, end: 2.2, word: "do", punctuated_word: "do" },
-  { start: 2.2, end: 2.4, word: "is", punctuated_word: "is," },
-  { start: 2.4, end: 2.8, word: "we're", punctuated_word: "we're" },
-  { start: 2.8, end: 3.1, word: "going", punctuated_word: "going" },
-  { start: 3.1, end: 3.3, word: "to", punctuated_word: "to" },
-  { start: 3.3, end: 3.7, word: "build", punctuated_word: "build" },
-  { start: 3.7, end: 3.8, word: "an", punctuated_word: "an" },
-  { start: 3.8, end: 4.3, word: "application", punctuated_word: "application" },
-];
-
-type AppState = "idle" | "uploading" | "processing" | "ready";
+type AppState = "idle" | "authenticating" | "uploading" | "processing" | "ready" | "error";
 
 export default function Home() {
-  const [appState, setAppState] = useState<AppState>("idle");
+  const [appState, setAppState] = useState<AppState>("authenticating");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [transcript, setTranscript] = useState<TranscriptWord[]>([]);
@@ -44,100 +44,100 @@ export default function Home() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-
-  // States for Firebase test
   const [user, setUser] = useState<User | null>(null);
-  const [testDocStatus, setTestDocStatus] = useState("Not Run");
-
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const unsubscribeFirestoreRef = useRef<(() => void) | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        toast({ title: "Auth State Changed", description: `User ID: ${currentUser.uid}`});
+        setUser(currentUser);
+        setAppState("idle");
+      } else {
+        setAppState("authenticating");
+        try {
+            await signInAnonymously(auth);
+            // The listener will handle setting the user and app state
+        } catch (error) {
+            console.error("Anonymous sign-in error:", error);
+            toast({ title: "Authentication Error", description: "Could not sign in.", variant: "destructive" });
+            setAppState("error");
+        }
       }
     });
-    return () => unsubscribe();
-  }, []);
-  
+    return () => unsubscribeAuth();
+  }, [toast]);
+
   const handleFileSelect = (file: File) => {
+    if (!user) {
+        toast({ title: "Authentication Required", description: "Please wait until you are signed in to upload.", variant: "destructive" });
+        return;
+    }
+
     setAppState("uploading");
-    const url = URL.createObjectURL(file);
-    
-    // Simulate upload and processing
-    let currentProgress = 0;
-    const uploadInterval = setInterval(() => {
-      currentProgress += 10;
-      setProgress(currentProgress);
-      if (currentProgress >= 100) {
-        clearInterval(uploadInterval);
-        setAppState("processing");
-        const processInterval = setInterval(() => {
-          currentProgress += 10;
-          setProgress(currentProgress % 100);
-           if (currentProgress >= 200) {
-            clearInterval(processInterval);
-            setVideoUrl(url);
-            setTranscript(MOCK_TRANSCRIPT);
-            setAppState("ready");
-           }
-        }, 150)
-      }
-    }, 100);
+    const uniqueFileName = `${uuidv4()}_${file.name}`;
+    const storagePath = `uploads/${user.uid}/${uniqueFileName}`;
+    const storageRef = ref(storage, storagePath);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    const videoDocId = `${user.uid}_${uniqueFileName}`;
+    const videoDocRef = doc(db, "videos", videoDocId);
+
+    // Listen for Firestore changes
+    unsubscribeFirestoreRef.current = onSnapshot(videoDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            switch (data.status) {
+                case "processing":
+                    setAppState("processing");
+                    break;
+                case "completed":
+                    setTranscript(parseTranscript(data.transcription));
+                    // Get the downloadable URL for the original video to play it
+                    getDownloadURL(ref(storage, data.gcsPath.replace(`gs://${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}/`, '')))
+                      .then(url => {
+                        setVideoUrl(url);
+                        setAppState("ready");
+                      })
+                      .catch(error => {
+                        console.error("Error getting download URL", error);
+                        toast({ title: "Playback Error", description: "Could not load video.", variant: "destructive" });
+                        setAppState("error");
+                      });
+                    unsubscribeFirestoreRef.current?.(); // Stop listening after completion
+                    break;
+                case "failed":
+                    toast({ title: "Transcription Failed", description: data.error || "An unknown error occurred.", variant: "destructive" });
+                    setAppState("error");
+                    unsubscribeFirestoreRef.current?.(); // Stop listening on failure
+                    break;
+            }
+        }
+    });
+
+    uploadTask.on('state_changed',
+        (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setProgress(progress);
+        },
+        (error) => {
+            console.error("Upload error", error);
+            toast({ title: "Upload Failed", description: "Could not upload your video.", variant: "destructive" });
+            setAppState("error");
+            unsubscribeFirestoreRef.current?.();
+        },
+        () => {
+            // Upload completed successfully, now waiting for processing
+            toast({ title: "Upload Complete", description: "Your video is now being processed." });
+        }
+    );
   };
-  
+
   const handleDemoVideoSelect = () => {
-     setAppState("processing");
-     setProgress(50);
-     setTimeout(() => {
-       setVideoUrl(DEMO_VIDEO_URL);
-       setTranscript(MOCK_TRANSCRIPT);
-       setAppState("ready");
-       setProgress(100);
-     }, 1000)
+     toast({ title: "Demo Video Disabled", description: "This feature is not available while using the live backend.", variant: "destructive"});
   }
-
-  const handleAnonymousSignIn = async () => {
-    try {
-      await signInAnonymously(auth);
-      toast({ title: "Authentication Success", description: "Signed in anonymously." });
-    } catch (error) {
-      console.error("Anonymous sign-in error:", error);
-      toast({ title: "Authentication Error", description: "Could not sign in.", variant: "destructive" });
-    }
-  };
-
-  const handleTestFirestore = async () => {
-    if (!auth.currentUser) {
-      toast({ title: "Firestore Error", description: "You must be signed in first.", variant: "destructive" });
-      return;
-    }
-    const testDocRef = doc(db, "testCollection", auth.currentUser.uid);
-    try {
-      setTestDocStatus("Writing...");
-      const testData = { message: "Hello from the app!", timestamp: new Date() };
-      await setDoc(testDocRef, testData);
-      
-      setTestDocStatus("Reading...");
-      const docSnap = await getDoc(testDocRef);
-
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setTestDocStatus(`Read successful: "${data.message}"`);
-        toast({ title: "Firestore Success", description: "Successfully wrote and read document." });
-      } else {
-        throw new Error("Test document not found after writing.");
-      }
-    } catch (error) {
-      console.error("Firestore test error:", error);
-      setTestDocStatus("Failed");
-      toast({ title: "Firestore Error", description: "Could not write or read document.", variant: "destructive" });
-    }
-  };
-
 
   useEffect(() => {
     const video = videoRef.current;
@@ -150,31 +150,15 @@ export default function Home() {
     video.addEventListener("timeupdate", timeUpdateHandler);
     return () => {
       video.removeEventListener("timeupdate", timeUpdateHandler);
+       if (unsubscribeFirestoreRef.current) {
+        unsubscribeFirestoreRef.current();
+      }
     };
   }, [videoUrl]);
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       <Header />
-
-      {/* Temporary Test Panel */}
-      <Card className="m-4 bg-yellow-900/50 border-yellow-700">
-        <CardHeader>
-          <CardTitle>PRD Step 3: Firebase Integration Test</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col sm:flex-row gap-4 items-center">
-          <div className="flex-1 space-y-2">
-            <p><strong>Status:</strong> {user ? `Authenticated (UID: ${user.uid})` : 'Not Authenticated'}</p>
-            <p><strong>Firestore:</strong> {testDocStatus}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleAnonymousSignIn} disabled={!!user}>Authenticate Anonymously</Button>
-            <Button onClick={handleTestFirestore} disabled={!user}>Write & Read Test Document</Button>
-          </div>
-        </CardContent>
-      </Card>
-      {/* End Test Panel */}
-
       <main className="flex-1 flex flex-col">
         {appState === "ready" && videoUrl ? (
           <Editor
