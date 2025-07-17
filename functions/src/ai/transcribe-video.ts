@@ -87,7 +87,12 @@ export async function transcribeVideo(bucketName: string, filePath: string): Pro
         ],
     });
 
-    const transcription = result.response.text();
+    const candidate = result.candidates?.[0];
+
+    if (!candidate || !candidate.content || !candidate.content.parts) {
+      throw new Error("Transcription failed: No candidates returned by the model.");
+    }
+    const transcription = candidate.content.parts.map(part => part.text).join("");
     console.log("Transcription generation completed successfully.");
  
     if (transcription === undefined) {
