@@ -96,10 +96,13 @@ export function Transcript({ transcript, currentTime, selection, setSelection, h
                     data-word-id={index}
                     ref={isActive ? activeWordRef : null}
                     className={cn(
-                    "transition-colors duration-150",
-                    isActive && "bg-accent text-accent-foreground rounded-md",
-                    isSelected && "bg-primary/50",
-                    !isSelected && isHotspot && "border-b-2 border-accent"
+                        "transition-colors duration-100",
+                        // Karaoke-style highlighting for the active word
+                        isActive ? "bg-primary text-primary-foreground p-1 rounded-md" :
+                        // Highlighting for selected words
+                        isSelected ? "bg-primary/30" :
+                        // Indicator for hotspot words, but not if they are also selected
+                        isHotspot ? "border-b-2 border-accent" : ""
                     )}
                 >
                     {word.punctuated_word}{' '}
@@ -113,7 +116,7 @@ export function Transcript({ transcript, currentTime, selection, setSelection, h
                     <div className="space-y-2">
                         {hotspots.map((hotspot, i) => (
                             <button key={i} onClick={() => handleHotspotClick(hotspot)} className="w-full text-left p-3 rounded-lg bg-card hover:bg-accent/10 border border-border transition-colors">
-                               <p className="font-semibold">Clip {i+1}: {hotspot.reason}</p>
+                               <p className="font-semibold">Clip {i+1}: {hotspot.title}</p>
                                <p className="text-sm text-muted-foreground">Duration: {(hotspot.endTime - hotspot.startTime).toFixed(1)}s</p>
                             </button>
                         ))}

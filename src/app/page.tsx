@@ -26,6 +26,14 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
+  
+  // Caption styling state
+  const [textColor, setTextColor] = useState("#FFFFFF");
+  const [highlightColor, setHighlightColor] = useState("#FFFF00");
+  const [outlineColor, setOutlineColor] = useState("#000000");
+  const [fontFamily, setFontFamily] = useState("Inter");
+  const [fontSize, setFontSize] = useState(3);
+
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const unsubscribeFirestoreRef = useRef<(() => void) | null>(null);
@@ -196,6 +204,16 @@ export default function Home() {
             currentTime={currentTime}
             isPlaying={isPlaying}
             setIsPlaying={setIsPlaying}
+            textColor={textColor}
+            setTextColor={setTextColor}
+            highlightColor={highlightColor}
+            setHighlightColor={setHighlightColor}
+            outlineColor={outlineColor}
+            setOutlineColor={setOutlineColor}
+            fontFamily={fontFamily}
+            setFontFamily={setFontFamily}
+            fontSize={fontSize}
+            setFontSize={setFontSize}
           />
         ) : (
           <VideoUploader onFileSelect={handleFileSelect} onDemoVideoSelect={handleDemoVideoSelect} status={appState} progress={progress} />

@@ -8,6 +8,7 @@ import { Selection, TranscriptWord } from "@/lib/types";
 import { Sparkles, Scissors, Loader2, Wand2, Play, Pause } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
+import { CaptionControls } from "./CaptionControls";
 
 type ClippingControlsProps = {
   selection: Selection | null;
@@ -19,6 +20,16 @@ type ClippingControlsProps = {
   videoRef: RefObject<HTMLVideoElement>;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
+  textColor: string;
+  setTextColor: (color: string) => void;
+  highlightColor: string;
+  setHighlightColor: (color: string) => void;
+  outlineColor: string;
+  setOutlineColor: (color: string) => void;
+  fontFamily: string;
+  setFontFamily: (font: string) => void;
+  fontSize: number;
+  setFontSize: (size: number) => void;
 };
 
 export function ClippingControls({
@@ -31,6 +42,16 @@ export function ClippingControls({
   videoRef,
   isPlaying,
   setIsPlaying,
+  textColor,
+  setTextColor,
+  highlightColor,
+  setHighlightColor,
+  outlineColor,
+  setOutlineColor,
+  fontFamily,
+  setFontFamily,
+  fontSize,
+  setFontSize,
 }: ClippingControlsProps) {
   const [prompt, setPrompt] = useState("");
   const { toast } = useToast();
@@ -88,6 +109,19 @@ export function ClippingControls({
               Suggest Hotspots
             </Button>
           </div>
+          
+          <CaptionControls
+            textColor={textColor}
+            setTextColor={setTextColor}
+            highlightColor={highlightColor}
+            setHighlightColor={setHighlightColor}
+            outlineColor={outlineColor}
+            setOutlineColor={setOutlineColor}
+            fontFamily={fontFamily}
+            setFontFamily={setFontFamily}
+            fontSize={fontSize}
+            setFontSize={setFontSize}
+          />
 
           {/* AI Background */}
           {selection && (

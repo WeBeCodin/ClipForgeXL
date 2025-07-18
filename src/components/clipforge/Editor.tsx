@@ -18,6 +18,16 @@ type EditorProps = {
   currentTime: number;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
+  textColor: string;
+  setTextColor: (color: string) => void;
+  highlightColor: string;
+  setHighlightColor: (color: string) => void;
+  outlineColor: string;
+  setOutlineColor: (color: string) => void;
+  fontFamily: string;
+  setFontFamily: (font: string) => void;
+  fontSize: number;
+  setFontSize: (size: number) => void;
 };
 
 export function Editor({
@@ -33,7 +43,17 @@ export function Editor({
   generatedBackground,
   currentTime,
   isPlaying,
-  setIsPlaying
+  setIsPlaying,
+  textColor,
+  setTextColor,
+  highlightColor,
+  setHighlightColor,
+  outlineColor,
+  setOutlineColor,
+  fontFamily,
+  setFontFamily,
+  fontSize,
+  setFontSize,
 }: EditorProps) {
   return (
     <div className="flex-1 grid md:grid-cols-2 lg:grid-cols-3 gap-6 p-4 md:p-6 lg:p-8 h-[calc(100vh-4rem-110px)]">
@@ -44,6 +64,13 @@ export function Editor({
           selection={selection}
           isPlaying={isPlaying}
           setIsPlaying={setIsPlaying}
+          transcript={transcript}
+          currentTime={currentTime}
+          textColor={textColor}
+          highlightColor={highlightColor}
+          outlineColor={outlineColor}
+          fontFamily={fontFamily}
+          fontSize={fontSize}
         />
         <Transcript
           transcript={transcript}
@@ -64,6 +91,16 @@ export function Editor({
         videoRef={videoRef}
         isPlaying={isPlaying}
         setIsPlaying={setIsPlaying}
+        textColor={textColor}
+        setTextColor={setTextColor}
+        highlightColor={highlightColor}
+        setHighlightColor={setHighlightColor}
+        outlineColor={outlineColor}
+        setOutlineColor={setOutlineColor}
+        fontFamily={fontFamily}
+        setFontFamily={setFontFamily}
+        fontSize={fontSize}
+        setFontSize={setFontSize}
       />
     </div>
   );

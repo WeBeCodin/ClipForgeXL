@@ -8,7 +8,7 @@ export interface TranscriptWord {
 export interface Hotspot {
   startTime: number;
   endTime: number;
-  reason: string;
+  title: string;
 }
 
 export interface Selection {
