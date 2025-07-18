@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 type ClippingControlsProps = {
   selection: Selection | null;
   isSuggesting: boolean;
+  onSuggestHotspots: () => void;
   isGenerating: boolean;
   generatedBackground: string | null;
   transcript: TranscriptWord[];
@@ -21,6 +22,7 @@ type ClippingControlsProps = {
 export function ClippingControls({
   selection,
   isSuggesting,
+  onSuggestHotspots,
   isGenerating,
   generatedBackground,
   transcript,
@@ -28,14 +30,6 @@ export function ClippingControls({
 }: ClippingControlsProps) {
   const [prompt, setPrompt] = useState("");
   const { toast } = useToast();
-
-  const handleSuggestHotspots = async () => {
-    toast({
-      title: "Feature Not Implemented",
-      description: "AI Hotspot suggestions will be added in a future step.",
-      variant: "destructive"
-    });
-  };
 
   const handleGenerateBackground = async (prompt: string) => {
      toast({
@@ -56,7 +50,11 @@ export function ClippingControls({
   const handleCreateClip = () => {
     // Placeholder for clip creation logic
     console.log("Creating clip from", selection);
-    alert("Clip creation initiated! (Feature not implemented)");
+    toast({
+        title: "Feature Not Implemented",
+        description: "Clip creation will be added in a future step.",
+        variant: "destructive"
+    });
   };
 
   return (
@@ -71,7 +69,7 @@ export function ClippingControls({
           <div className="space-y-2">
             <h3 className="font-semibold font-headline flex items-center gap-2"><Sparkles className="w-5 h-5 text-accent"/> AI Hotspot Suggestions</h3>
             <p className="text-sm text-muted-foreground">Let AI find the most engaging parts of your video.</p>
-            <Button onClick={handleSuggestHotspots} disabled={isSuggesting} className="w-full">
+            <Button onClick={onSuggestHotspots} disabled={isSuggesting} className="w-full">
               {isSuggesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Suggest Hotspots
             </Button>

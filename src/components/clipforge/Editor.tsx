@@ -12,6 +12,7 @@ type EditorProps = {
   selection: Selection | null;
   setSelection: (selection: Selection | null) => void;
   isSuggesting: boolean;
+  onSuggestHotspots: () => void;
   isGenerating: boolean;
   generatedBackground: string | null;
   currentTime: number;
@@ -27,6 +28,7 @@ export function Editor({
   selection,
   setSelection,
   isSuggesting,
+  onSuggestHotspots,
   isGenerating,
   generatedBackground,
   currentTime,
@@ -55,6 +57,7 @@ export function Editor({
       <ClippingControls
         selection={selection}
         isSuggesting={isSuggesting}
+        onSuggestHotspots={onSuggestHotspots}
         isGenerating={isGenerating}
         generatedBackground={generatedBackground}
         transcript={transcript}

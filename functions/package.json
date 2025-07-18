@@ -11,12 +11,14 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
-    "@google/genai": "^0.2.1",
     "@google-cloud/storage": "^7.7.0",
+    "@google/genai": "^1.10.0",
+    "dotenv": "^17.2.0",
     "firebase-admin": "^12.1.1",
     "firebase-functions": "^5.0.1"
   },
   "devDependencies": {
+    "@types/dotenv": "^6.1.1",
     "@types/node": "^20.14.2",
     "firebase-functions-test": "^3.3.0",
     "ts-node": "^10.9.2",

@@ -1,44 +1,37 @@
 'use strict';
-import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
-import {transcribeVideo} from "./ai/transcribe-video";
-import * as path from "path";
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.onVideoUpload = void 0;
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+const transcribe_video_1 = require("./ai/transcribe-video");
+const path = require("path");
 admin.initializeApp();
 const db = admin.firestore();
-
 // This function is triggered when a file is uploaded to the /uploads/ GCS folder.
-export const onVideoUpload = functions.storage.object().onFinalize(async (object) => {
+exports.onVideoUpload = functions.storage.object().onFinalize(async (object) => {
     const bucketName = object.bucket;
     const filePath = object.name;
-
     // Using functions.logger for structured logging
     const { logger } = functions;
-
     // Exit if this is a folder, or not in the 'uploads' folder.
     if (!filePath || !filePath.startsWith("uploads/")) {
         logger.log(`Not a valid video upload or not in the correct folder: ${filePath}`);
         return null;
     }
-    
     // Exit if this is a directory marker.
     if (filePath.endsWith('/')) {
         logger.log(`This is a folder marker, skipping: ${filePath}`);
         return null;
     }
-
     const uid = filePath.split('/')[1]; // Assumes path is "uploads/{uid}/filename"
     if (!uid) {
         logger.error(`Could not determine UID from path: ${filePath}`);
         return null;
     }
-
     logger.log(`Video upload detected: ${filePath} by user ${uid}.`);
-    
     // Create a document in Firestore to track the transcription status
     const videoDocId = `${uid}_${path.basename(filePath)}`;
     const videoDocRef = db.collection("videos").doc(videoDocId);
-
     logger.log(`Creating Firestore document: /videos/${videoDocId}`);
     await videoDocRef.set({
         uid: uid,
@@ -47,11 +40,9 @@ export const onVideoUpload = functions.storage.object().onFinalize(async (object
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     logger.log(`Successfully created Firestore document for ${videoDocId}.`);
-
     try {
         logger.log(`Starting transcription for ${filePath}...`);
-        const transcription = await transcribeVideo(bucketName, filePath);
-        
+        const transcription = await (0, transcribe_video_1.transcribeVideo)(bucketName, filePath);
         logger.log(`Transcription successful for ${filePath}. Updating Firestore with status 'completed'.`);
         // Return the promise chain to ensure the function waits for the update to complete.
         return videoDocRef.update({
@@ -61,8 +52,8 @@ export const onVideoUpload = functions.storage.object().onFinalize(async (object
         }).then(() => {
             logger.log(`Firestore status updated to 'completed' for ${videoDocId}.`);
         });
-
-    } catch (error) {
+    }
+    catch (error) {
         logger.error(`Transcription or database update failed for ${filePath}:`, error);
         // Return the promise chain to ensure the function waits for the update to complete.
         return videoDocRef.update({
@@ -74,3 +65,4 @@ export const onVideoUpload = functions.storage.object().onFinalize(async (object
         });
     }
 });
+//# sourceMappingURL=index.js.map

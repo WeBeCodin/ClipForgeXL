@@ -12,6 +12,7 @@ import { signInAnonymously, onAuthStateChanged, User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { v4 as uuidv4 } from 'uuid';
+import { suggestHotspots } from "@/ai/flow/suggest-hotspots-flow";
 
 
 function parseTranscript(text: string): TranscriptWord[] {
@@ -45,6 +46,7 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [isSuggesting, setIsSuggesting] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const unsubscribeFirestoreRef = useRef<(() => void) | null>(null);
@@ -96,7 +98,7 @@ export default function Home() {
                 case "completed":
                     setTranscript(parseTranscript(data.transcription));
                     // Get the downloadable URL for the original video to play it
-                    getDownloadURL(ref(storage, data.gcsPath.replace(`gs://${process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}/`, '')))
+                    getDownloadURL(ref(storage, data.gcsPath))
                       .then(url => {
                         setVideoUrl(url);
                         setAppState("ready");
@@ -139,6 +141,25 @@ export default function Home() {
      toast({ title: "Demo Video Disabled", description: "This feature is not available while using the live backend.", variant: "destructive"});
   }
 
+  const handleSuggestHotspots = async () => {
+    setIsSuggesting(true);
+    try {
+      const fullTranscript = transcript.map(t => t.punctuated_word).join(' ');
+      const suggestedHotspots = await suggestHotspots({ transcript: fullTranscript, words: transcript });
+      setHotspots(suggestedHotspots);
+      toast({ title: "Hotspots Generated", description: "AI has suggested some clips for you." });
+    } catch (error) {
+      console.error("Error suggesting hotspots:", error);
+      toast({
+        title: "Failed to Suggest Hotspots",
+        description: "An error occurred while analyzing the transcript.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -168,7 +189,8 @@ export default function Home() {
             hotspots={hotspots}
             selection={selection}
             setSelection={setSelection}
-            isSuggesting={false}
+            isSuggesting={isSuggesting}
+            onSuggestHotspots={handleSuggestHotspots}
             isGenerating={false}
             generatedBackground={null}
             currentTime={currentTime}

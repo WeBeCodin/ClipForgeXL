@@ -5,6 +5,10 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import {Storage} from "@google-cloud/storage";
+import * as dotenv from "dotenv";
+
+// Load environment variables from .env file
+dotenv.config();
 
 // Initialize the new GoogleGenAI class with the API key
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
