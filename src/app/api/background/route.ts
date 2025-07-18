@@ -7,15 +7,18 @@ export async function POST(req: NextRequest) {
   try {
     const { prompt } = await req.json();
 
-    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
 
-    const result = await model.generateContent(prompt);
+    const fullPrompt = `Based on the following description, create a concise and descriptive title for a background image: "${prompt}"`;
+
+    const result = await model.generateContent(fullPrompt);
     const response = await result.response;
-    const text = response.text();
+    const text = response.text().replace(/
+/g, ""); // Corrected: Remove newlines from the response
+
+    // Using the generated text to create a placeholder image URL
+    return NextResponse.json({ backgroundUrl: `https://dummyimage.com/1080x1920/000/fff&text=${encodeURIComponent(text)}` });
     
-    // For now, we'll just return the generated text. In a real application, 
-    // you would use a text-to-image model to generate an image from this text.
-    return NextResponse.json({ backgroundUrl: `https://dummyimage.com/600x400/000/fff&text=${encodeURIComponent(text)}` });
   } catch (error) {
     console.error("Error generating background:", error);
     return NextResponse.json({ error: "Failed to generate background" }, { status: 500 });

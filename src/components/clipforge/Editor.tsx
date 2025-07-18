@@ -80,6 +80,14 @@ export function Editor({
           transform={transform}
           generatedBackground={generatedBackground}
         />
+        <Transcript
+          transcript={transcript}
+          hotspots={hotspots}
+          currentTime={currentTime}
+          selection={selection}
+          setSelection={setSelection}
+          videoRef={videoRef}
+        />
       </div>
       <ClippingControls
         selection={selection}
