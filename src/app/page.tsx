@@ -129,11 +129,10 @@ export default function Home() {
   const handleSuggestHotspots = async () => {
     setIsSuggesting(true);
     try {
-      const fullTranscript = transcript.map(t => t.punctuated_word).join(' ');
       const response = await fetch("/api/hotspots", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript: fullTranscript }),
+        body: JSON.stringify({ transcript }),
       });
 
       if (!response.ok) {
