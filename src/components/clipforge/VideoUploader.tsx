@@ -10,7 +10,7 @@ import { UploadCloud, Loader2 } from "lucide-react";
 type VideoUploaderProps = {
   onFileSelect: (file: File) => void;
   onDemoVideoSelect: () => void;
-  status: "idle" | "authenticating" | "uploading" | "processing" | "error";
+  status: "idle" | "authenticating" | "uploading" | "processing" | "ready" | "error";
   progress: number;
 };
 
@@ -28,9 +28,10 @@ export function VideoUploader({ onFileSelect, onDemoVideoSelect, status, progres
     processing: "Processing and transcribing...",
     error: "An error occurred. Please refresh and try again.",
     idle: "",
+    ready: "",
   };
   
-  const isInteractive = status === 'idle';
+  const isInteractive = status === 'idle' || status === 'ready';
 
   return (
     <div className="flex-1 flex items-center justify-center p-4">

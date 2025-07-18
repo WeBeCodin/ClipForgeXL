@@ -12,7 +12,6 @@ import { signInAnonymously, onAuthStateChanged, User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { v4 as uuidv4 } from 'uuid';
-import { suggestHotspots } from "@/ai/flow/suggest-hotspots-flow";
 
 
 function parseTranscript(text: string): TranscriptWord[] {
@@ -145,7 +144,17 @@ export default function Home() {
     setIsSuggesting(true);
     try {
       const fullTranscript = transcript.map(t => t.punctuated_word).join(' ');
-      const suggestedHotspots = await suggestHotspots({ transcript: fullTranscript, words: transcript });
+      const response = await fetch("/api/hotspots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript: fullTranscript }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch hotspots");
+      }
+
+      const suggestedHotspots = await response.json();
       setHotspots(suggestedHotspots);
       toast({ title: "Hotspots Generated", description: "AI has suggested some clips for you." });
     } catch (error) {
