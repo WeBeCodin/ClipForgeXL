@@ -20,6 +20,7 @@ type VideoPlayerProps = {
   fontFamily: string;
   fontSize: number;
   transform: Transform;
+  generatedBackground: string | null;
 };
 
 export function VideoPlayer({ 
@@ -36,6 +37,7 @@ export function VideoPlayer({
   fontFamily,
   fontSize,
   transform,
+  generatedBackground,
 }: VideoPlayerProps) {
   
   const togglePlay = () => {
@@ -93,11 +95,14 @@ export function VideoPlayer({
 
   return (
     <Card className="overflow-hidden shadow-lg" style={{ aspectRatio: `${aspectRatioWidth} / ${aspectRatioHeight}` }}>
-      <div className="relative w-full h-full">
+      <div className="relative w-full h-full bg-black">
+        {generatedBackground && (
+          <img src={generatedBackground} alt="AI Generated Background" className="absolute inset-0 w-full h-full object-cover" />
+        )}
         <video
           ref={videoRef}
           src={videoUrl}
-          className="absolute top-1/2 left-1/2 object-contain bg-black"
+          className="absolute top-1/2 left-1/2 object-contain"
           style={{
             width: `${100 * transform.zoom}%`,
             height: `${100 * transform.zoom}%`,

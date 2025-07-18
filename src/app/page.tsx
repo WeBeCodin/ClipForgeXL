@@ -26,6 +26,8 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedBackground, setGeneratedBackground] = useState<string | null>(null);
   
   // Caption styling state
   const [textColor, setTextColor] = useState("#FFFFFF");
@@ -168,6 +170,32 @@ export default function Home() {
       setIsSuggesting(false);
     }
   };
+  
+  const handleGenerateBackground = async (prompt: string) => {
+    setIsGenerating(true);
+    try {
+      const response = await fetch("/api/background", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to generate background");
+      }
+      const { backgroundUrl } = await response.json();
+      setGeneratedBackground(backgroundUrl);
+      toast({ title: "Background Generated", description: "The AI background has been applied." });
+    } catch (error) {
+      console.error("Error generating background:", error);
+      toast({
+        title: "Failed to Generate Background",
+        description: "An error occurred while generating the background.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   useEffect(() => {
     const video = videoRef.current;
@@ -206,8 +234,9 @@ export default function Home() {
             setSelection={setSelection}
             isSuggesting={isSuggesting}
             onSuggestHotspots={handleSuggestHotspots}
-            isGenerating={false}
-            generatedBackground={null}
+            isGenerating={isGenerating}
+            onGenerateBackground={handleGenerateBackground}
+            generatedBackground={generatedBackground}
             currentTime={currentTime}
             isPlaying={isPlaying}
             setIsPlaying={setIsPlaying}

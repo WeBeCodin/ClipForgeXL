@@ -14,6 +14,7 @@ type EditorProps = {
   isSuggesting: boolean;
   onSuggestHotspots: () => void;
   isGenerating: boolean;
+  onGenerateBackground: (prompt: string) => void;
   generatedBackground: string | null;
   currentTime: number;
   isPlaying: boolean;
@@ -42,6 +43,7 @@ export function Editor({
   isSuggesting,
   onSuggestHotspots,
   isGenerating,
+  onGenerateBackground,
   generatedBackground,
   currentTime,
   isPlaying,
@@ -76,6 +78,7 @@ export function Editor({
           fontFamily={fontFamily}
           fontSize={fontSize}
           transform={transform}
+          generatedBackground={generatedBackground}
         />
       </div>
       <ClippingControls
@@ -83,6 +86,7 @@ export function Editor({
         isSuggesting={isSuggesting}
         onSuggestHotspots={onSuggestHotspots}
         isGenerating={isGenerating}
+        onGenerateBackground={onGenerateBackground}
         generatedBackground={generatedBackground}
         transcript={transcript}
         videoRef={videoRef}

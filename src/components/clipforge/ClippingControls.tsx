@@ -16,6 +16,7 @@ type ClippingControlsProps = {
   isSuggesting: boolean;
   onSuggestHotspots: () => void;
   isGenerating: boolean;
+  onGenerateBackground: (prompt: string) => void;
   generatedBackground: string | null;
   transcript: TranscriptWord[];
   videoRef: RefObject<HTMLVideoElement>;
@@ -40,6 +41,7 @@ export function ClippingControls({
   isSuggesting,
   onSuggestHotspots,
   isGenerating,
+  onGenerateBackground,
   generatedBackground,
   transcript,
   videoRef,
@@ -60,14 +62,6 @@ export function ClippingControls({
 }: ClippingControlsProps) {
   const [prompt, setPrompt] = useState("");
   const { toast } = useToast();
-
-  const handleGenerateBackground = async (prompt: string) => {
-     toast({
-      title: "Feature Not Implemented",
-      description: "AI background generation will be added in a future step.",
-      variant: "destructive"
-    });
-  };
   
   const getSelectedText = () => {
     if (!selection) return "";
@@ -142,7 +136,7 @@ export function ClippingControls({
                     onChange={(e) => setPrompt(e.target.value)}
                     disabled={isGenerating}
                   />
-                  <Button onClick={() => handleGenerateBackground(prompt)} disabled={!prompt || isGenerating} className="w-full">
+                  <Button onClick={() => onGenerateBackground(prompt)} disabled={!prompt || isGenerating} className="w-full">
                     {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Generate Background
                   </Button>
