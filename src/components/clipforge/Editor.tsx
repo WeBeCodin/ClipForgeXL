@@ -62,6 +62,8 @@ export function Editor({
         generatedBackground={generatedBackground}
         transcript={transcript}
         videoRef={videoRef}
+        isPlaying={isPlaying}
+        setIsPlaying={setIsPlaying}
       />
     </div>
   );

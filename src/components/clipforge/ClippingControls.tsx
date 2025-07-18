@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Selection, TranscriptWord } from "@/lib/types";
-import { Sparkles, Scissors, Loader2, Wand2 } from "lucide-react";
+import { Sparkles, Scissors, Loader2, Wand2, Play, Pause } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,6 +17,8 @@ type ClippingControlsProps = {
   generatedBackground: string | null;
   transcript: TranscriptWord[];
   videoRef: RefObject<HTMLVideoElement>;
+  isPlaying: boolean;
+  setIsPlaying: (playing: boolean) => void;
 };
 
 export function ClippingControls({
@@ -26,7 +28,9 @@ export function ClippingControls({
   isGenerating,
   generatedBackground,
   transcript,
-  videoRef
+  videoRef,
+  isPlaying,
+  setIsPlaying,
 }: ClippingControlsProps) {
   const [prompt, setPrompt] = useState("");
   const { toast } = useToast();
@@ -55,6 +59,16 @@ export function ClippingControls({
         description: "Clip creation will be added in a future step.",
         variant: "destructive"
     });
+  };
+
+  const handlePlayPause = () => {
+    if (!videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+    } else {
+      videoRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
   };
 
   return (
@@ -110,9 +124,15 @@ export function ClippingControls({
                 <p className="text-muted-foreground italic">"{getSelectedText()}"</p>
              </div>
              <p className="text-sm font-medium">Duration: {(selection.end - selection.start).toFixed(1)} seconds</p>
-             <Button onClick={handleCreateClip} size="lg" className="w-full">
-                Create Clip
-             </Button>
+             <div className="flex gap-2">
+                <Button onClick={handlePlayPause} size="lg" className="flex-1">
+                    {isPlaying ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                    {isPlaying ? 'Pause' : 'Play'}
+                </Button>
+                <Button onClick={handleCreateClip} size="lg" className="flex-1">
+                    Create Clip
+                </Button>
+              </div>
           </div>
         )}
       </CardContent>
