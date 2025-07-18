@@ -13,26 +13,6 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { v4 as uuidv4 } from 'uuid';
 
-
-function parseTranscript(text: string): TranscriptWord[] {
-  // This is a placeholder parser. A real implementation would be more complex
-  // and would need word-level timestamps from the transcription API if available.
-  // For now, we split by space and assign arbitrary even durations.
-  const words = text.split(/\s+/);
-  let currentTime = 0;
-  return words.map((word, index) => {
-    const start = currentTime;
-    const end = start + 0.5; // Arbitrary duration
-    currentTime = end + 0.1; // Arbitrary gap
-    return {
-      word: word.replace(/[.,!?]/g, ''),
-      punctuated_word: word,
-      start,
-      end,
-    };
-  });
-}
-
 type AppState = "idle" | "authenticating" | "uploading" | "processing" | "ready" | "error";
 
 export default function Home() {
@@ -95,7 +75,13 @@ export default function Home() {
                     setAppState("processing");
                     break;
                 case "completed":
-                    setTranscript(parseTranscript(data.transcription));
+                    if (Array.isArray(data.transcription)) {
+                        setTranscript(data.transcription);
+                    } else {
+                        console.error("Firestore transcription data is not an array:", data.transcription);
+                        toast({ title: "Invalid Transcript Format", description: "The transcript data is outdated. Please re-upload the video to get word-level timestamps.", variant: "destructive" });
+                        setTranscript([]); // Set to empty to prevent crash
+                    }
                     // Get the downloadable URL for the original video to play it
                     getDownloadURL(ref(storage, data.gcsPath))
                       .then(url => {

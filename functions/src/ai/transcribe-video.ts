@@ -1,6 +1,6 @@
 
 // functions/src/ai/transcribe-video.ts
-import { GoogleGenAI, FileState, File } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -10,97 +10,69 @@ import * as dotenv from "dotenv";
 // Load environment variables from .env file
 dotenv.config();
 
-// Initialize the new GoogleGenAI class with the API key
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+// Initialize the new GoogleGenerativeAI class with the API key
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const storage = new Storage();
 
-const POLLING_INTERVAL_MS = 10000; // 10 seconds
-const MAX_POLLING_ATTEMPTS = 60;   // 10 minutes max
+function fileToGenerativePart(path: string, mimeType: string) {
+    return {
+      inlineData: {
+        data: Buffer.from(fs.readFileSync(path)).toString("base64"),
+        mimeType
+      },
+    };
+  }
 
 /**
- * Downloads a video from GCS, uploads it to the Gemini File API,
- * generates a transcription, and cleans up all resources.
+ * Downloads a video from GCS, generates a transcription with word-level timestamps, and cleans up all resources.
  * @param bucketName The name of the Google Cloud Storage bucket.
  * @param filePath The path to the video file within the bucket.
- * @returns A promise that resolves to the transcribed text.
+ * @returns A promise that resolves to the structured transcription data.
  */
-export async function transcribeVideo(bucketName: string, filePath: string): Promise<string> {
+export async function transcribeVideo(bucketName: string, filePath: string): Promise<any> {
   const tempFilePath = path.join(os.tmpdir(), path.basename(filePath));
-  let fileUploadResponse;
-
+  
   try {
     // Step 1: Download the file from GCS to a temporary local directory
     await storage.bucket(bucketName).file(filePath).download({ destination: tempFilePath });
     console.log(`Successfully downloaded file from GCS to temporary path: ${tempFilePath}.`);
 
-    // Step 2: Upload the local file to the Gemini File API
-    console.log(`Uploading ${tempFilePath} to the Gemini File API...`);
-    fileUploadResponse = await genAI.files.upload({
-        file: tempFilePath,
-    });
-    console.log(`Upload complete. File API Name: ${fileUploadResponse.name}, URI: ${fileUploadResponse.uri}`);
+    const videoFilePart = fileToGenerativePart(tempFilePath, "video/mp4");
 
-    // Step 2.5: Poll for ACTIVE state
-    console.log(`Polling for file to become active. This may take a few minutes...`);
-    let attempts = 0;
-    let geminiFile;
-
-    if (!fileUploadResponse?.name) {
-        throw new Error("File upload failed, no name returned.");
-    }
-
-    while(attempts < MAX_POLLING_ATTEMPTS) {
-        const file: File = await genAI.files.get({ name: fileUploadResponse.name });
-
-        if (file.state === FileState.ACTIVE) {
-          console.log(`File is now ACTIVE.`);
-          geminiFile = file;
-          break;
-        } else if (file.state === FileState.FAILED) {
-            throw new Error(`File processing failed with state: ${file.state}`);
-        }
- 
-        console.log(`Current file state: ${file.state}. Waiting ${POLLING_INTERVAL_MS / 1000}s...`);
-        await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS));
-        attempts++;
-    }
-
-    if (!geminiFile || geminiFile.state !== FileState.ACTIVE) {
-        throw new Error(`File did not become active after ${attempts * POLLING_INTERVAL_MS / 1000} seconds. Last state: ${geminiFile?.state}`);
-    }
-
-    // Step 3: Generate content using the File API URI
-    const prompt = "Please provide a detailed, verbatim transcription of the audio in this video file.";
-
-    // Correctly call generateContent on the 'models' submodule
-    const result = await genAI.models.generateContent({
+    // Step 2: Generate content using the video data
+    const prompt = `
+      Please provide a detailed, verbatim transcription of the audio in this video file.
+      The output should be a JSON object containing a single key "words", which is an array of objects.
+      Each object in the "words" array should have the following properties:
+      - "word": The transcribed word.
+      - "punctuated_word": The transcribed word with punctuation.
+      - "start": The start time of the word in seconds.
+      - "end": The end time of the word in seconds.
+    `;
+    
+    const model = genAI.getGenerativeModel({
         model: "gemini-1.5-pro-latest",
-        contents: [
-            {
-                role: "user",
-                parts: [
-                    { text: prompt },
-                    {
-                        fileData: {
-                            mimeType: geminiFile.mimeType,
-                            fileUri: geminiFile.uri,
-                        },
-                    },
-                ],
-            },
-        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+        },
     });
 
-    const candidate = result.candidates?.[0];
+    const result = await model.generateContent([prompt, videoFilePart]);
+
+    const candidate = result.response.candidates?.[0];
 
     if (!candidate || !candidate.content || !candidate.content.parts) {
       throw new Error("Transcription failed: No candidates returned by the model.");
     }
-    const transcription = candidate.content.parts.map(part => part.text).join("");
+    const transcriptionText = candidate.content.parts.map(part => part.text).join("");
+    
+    // The response is now guaranteed to be a JSON string.
+    const transcription = JSON.parse(transcriptionText);
+    
     console.log("Transcription generation completed successfully.");
  
-    if (transcription === undefined) {
-      throw new Error("Transcription failed: No text was returned by the model.");
+    if (!transcription || !transcription.words) {
+      throw new Error("Transcription failed: No words were returned by the model.");
     }
 
     return transcription;
@@ -109,18 +81,6 @@ export async function transcribeVideo(bucketName: string, filePath: string): Pro
     console.error("An error occurred in the transcribeVideo workflow:", error);
     throw new Error(`Failed to transcribe video: ${error instanceof Error? error.message : String(error)}`);
   } finally {
-    // Step 4: Clean up resources regardless of success or failure
- 
-    // Clean up the file from the Gemini File API
-    if (fileUploadResponse && fileUploadResponse.name) {
-      try {
-        await genAI.files.delete({ name: fileUploadResponse.name });
-        console.log(`Successfully cleaned up file from File API: ${fileUploadResponse.name}`);
-      } catch (cleanupError: any) {
-        console.error(`Failed to clean up file from File API (${fileUploadResponse.name}):`, cleanupError);
-      }
-    }
-
     // Clean up the temporary local file
     if (fs.existsSync(tempFilePath)) {
       fs.unlinkSync(tempFilePath);

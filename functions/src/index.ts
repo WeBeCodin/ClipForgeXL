@@ -56,7 +56,7 @@ export const onVideoUpload = functions.storage.object().onFinalize(async (object
         // Return the promise chain to ensure the function waits for the update to complete.
         return videoDocRef.update({
             status: "completed",
-            transcription: transcription,
+            transcription: transcription.words, // Store the array of words
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }).then(() => {
             logger.log(`Firestore status updated to 'completed' for ${videoDocId}.`);
