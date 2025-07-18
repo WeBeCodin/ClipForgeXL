@@ -174,7 +174,13 @@ export default function Home() {
     if (!video) return;
 
     const timeUpdateHandler = () => {
-      setCurrentTime(video.currentTime);
+      const currentTime = video.currentTime;
+      setCurrentTime(currentTime);
+
+      if (isPlaying && selection && currentTime >= selection.end) {
+        video.pause();
+        setIsPlaying(false);
+      }
     };
 
     video.addEventListener("timeupdate", timeUpdateHandler);
@@ -184,7 +190,7 @@ export default function Home() {
         unsubscribeFirestoreRef.current();
       }
     };
-  }, [videoUrl]);
+  }, [videoUrl, isPlaying, selection]);
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
