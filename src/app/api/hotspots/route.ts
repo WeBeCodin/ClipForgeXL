@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
     const prompt = `
       You are an expert video editor. Analyze the following transcript and identify the most compelling and engaging moments that would make good video clips. 
-      For each suggested clip, provide a start time, end time, and a short, catchy title.
+      For each suggested clip, provide a start time and end time in seconds, and a short, catchy title.
       Return the results as a JSON array of objects, where each object has the following properties: "start", "end", and "title".
       Transcript:
       ${transcript}
@@ -25,7 +25,14 @@ export async function POST(req: NextRequest) {
     // Extract the JSON array from the response
     const jsonArray = JSON.parse(text.match(/(\[.*\])/s)![0]);
 
-    return NextResponse.json(jsonArray);
+    // Map the response to the expected format
+    const hotspots = jsonArray.map((hotspot: any) => ({
+      startTime: Number(hotspot.start),
+      endTime: Number(hotspot.end),
+      title: hotspot.title,
+    }));
+
+    return NextResponse.json(hotspots);
   } catch (error) {
     console.error("Error generating hotspots:", error);
     return NextResponse.json({ error: "Failed to generate hotspots" }, { status: 500 });
