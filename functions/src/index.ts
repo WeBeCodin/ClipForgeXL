@@ -8,7 +8,10 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // This function is triggered when a file is uploaded to the /uploads/ GCS folder.
-export const onVideoUpload = functions.storage.object().onFinalize(async (object) => {
+export const onVideoUpload = functions.runWith({
+    timeoutSeconds: 540, // 9 minutes
+    memory: "1GB",
+}).storage.object().onFinalize(async (object) => {
     const bucketName = object.bucket;
     const filePath = object.name;
 
