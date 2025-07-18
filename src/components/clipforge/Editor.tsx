@@ -1,4 +1,4 @@
-import { Hotspot, Selection, TranscriptWord } from "@/lib/types";
+import { Hotspot, Selection, TranscriptWord, Transform } from "@/lib/types";
 import { VideoPlayer } from "./VideoPlayer";
 import { Transcript } from "./Transcript";
 import { ClippingControls } from "./ClippingControls";
@@ -28,6 +28,8 @@ type EditorProps = {
   setFontFamily: (font: string) => void;
   fontSize: number;
   setFontSize: (size: number) => void;
+  transform: Transform;
+  setTransform: (transform: Transform) => void;
 };
 
 export function Editor({
@@ -54,6 +56,8 @@ export function Editor({
   setFontFamily,
   fontSize,
   setFontSize,
+  transform,
+  setTransform,
 }: EditorProps) {
   return (
     <div className="flex-1 grid md:grid-cols-2 lg:grid-cols-3 gap-6 p-4 md:p-6 lg:p-8 h-[calc(100vh-4rem-110px)]">
@@ -71,14 +75,7 @@ export function Editor({
           outlineColor={outlineColor}
           fontFamily={fontFamily}
           fontSize={fontSize}
-        />
-        <Transcript
-          transcript={transcript}
-          hotspots={hotspots}
-          currentTime={currentTime}
-          selection={selection}
-          setSelection={setSelection}
-          videoRef={videoRef}
+          transform={transform}
         />
       </div>
       <ClippingControls
@@ -101,6 +98,8 @@ export function Editor({
         setFontFamily={setFontFamily}
         fontSize={fontSize}
         setFontSize={setFontSize}
+        transform={transform}
+        setTransform={setTransform}
       />
     </div>
   );

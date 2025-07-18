@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { Header } from "@/components/clipforge/Header";
 import { VideoUploader } from "@/components/clipforge/VideoUploader";
 import { Editor } from "@/components/clipforge/Editor";
-import { Hotspot, Selection, TranscriptWord } from "@/lib/types";
+import { Hotspot, Selection, TranscriptWord, Transform } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { app, auth, db, storage } from "@/lib/firebase";
 import { signInAnonymously, onAuthStateChanged, User } from "firebase/auth";
@@ -33,6 +33,13 @@ export default function Home() {
   const [outlineColor, setOutlineColor] = useState("#000000");
   const [fontFamily, setFontFamily] = useState("Inter");
   const [fontSize, setFontSize] = useState(3);
+  
+  // Transformation state
+  const [transform, setTransform] = useState<Transform>({
+    pan: { x: 0, y: 0 },
+    zoom: 1,
+    aspectRatio: "16/9",
+  });
 
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -214,6 +221,8 @@ export default function Home() {
             setFontFamily={setFontFamily}
             fontSize={fontSize}
             setFontSize={setFontSize}
+            transform={transform}
+            setTransform={setTransform}
           />
         ) : (
           <VideoUploader onFileSelect={handleFileSelect} onDemoVideoSelect={handleDemoVideoSelect} status={appState} progress={progress} />

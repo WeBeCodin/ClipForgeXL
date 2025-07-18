@@ -3,9 +3,8 @@
 import { RefObject, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Selection, TranscriptWord } from "@/lib/types";
+import { Selection, TranscriptWord, Transform } from "@/lib/types";
 import { Play, Pause, Rewind, FastForward } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 type VideoPlayerProps = {
   videoUrl: string;
@@ -20,6 +19,7 @@ type VideoPlayerProps = {
   outlineColor: string;
   fontFamily: string;
   fontSize: number;
+  transform: Transform;
 };
 
 export function VideoPlayer({ 
@@ -35,6 +35,7 @@ export function VideoPlayer({
   outlineColor,
   fontFamily,
   fontSize,
+  transform,
 }: VideoPlayerProps) {
   
   const togglePlay = () => {
@@ -88,13 +89,20 @@ export function VideoPlayer({
 
   const currentLine = getCurrentLine();
 
+  const [aspectRatioWidth, aspectRatioHeight] = transform.aspectRatio.split('/').map(Number);
+
   return (
-    <Card className="overflow-hidden shadow-lg relative">
-      <div className="relative aspect-video">
+    <Card className="overflow-hidden shadow-lg" style={{ aspectRatio: `${aspectRatioWidth} / ${aspectRatioHeight}` }}>
+      <div className="relative w-full h-full">
         <video
           ref={videoRef}
           src={videoUrl}
-          className="w-full h-full object-contain bg-black"
+          className="absolute top-1/2 left-1/2 object-contain bg-black"
+          style={{
+            width: `${100 * transform.zoom}%`,
+            height: `${100 * transform.zoom}%`,
+            transform: `translate(-50%, -50%) translate(${transform.pan.x}px, ${transform.pan.y}px)`,
+          }}
         />
         
         {/* Captions Overlay */}

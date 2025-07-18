@@ -4,11 +4,12 @@ import { useState, RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Selection, TranscriptWord } from "@/lib/types";
+import { Selection, TranscriptWord, Transform } from "@/lib/types";
 import { Sparkles, Scissors, Loader2, Wand2, Play, Pause } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import { CaptionControls } from "./CaptionControls";
+import { TransformControls } from "./TransformControls";
 
 type ClippingControlsProps = {
   selection: Selection | null;
@@ -30,6 +31,8 @@ type ClippingControlsProps = {
   setFontFamily: (font: string) => void;
   fontSize: number;
   setFontSize: (size: number) => void;
+  transform: Transform;
+  setTransform: (transform: Transform) => void;
 };
 
 export function ClippingControls({
@@ -52,6 +55,8 @@ export function ClippingControls({
   setFontFamily,
   fontSize,
   setFontSize,
+  transform,
+  setTransform,
 }: ClippingControlsProps) {
   const [prompt, setPrompt] = useState("");
   const { toast } = useToast();
@@ -110,6 +115,8 @@ export function ClippingControls({
             </Button>
           </div>
           
+          <TransformControls transform={transform} setTransform={setTransform} />
+
           <CaptionControls
             textColor={textColor}
             setTextColor={setTextColor}
