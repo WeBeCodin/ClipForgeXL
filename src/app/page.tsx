@@ -28,6 +28,7 @@ export default function Home() {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedBackground, setGeneratedBackground] = useState<string | null>(null);
+  const [isRendering, setIsRendering] = useState(false);
   
   // Caption styling state
   const [textColor, setTextColor] = useState("#FFFFFF");
@@ -179,21 +180,84 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
       });
+
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error("Failed to generate background");
+        const errorMessage = data.error || "An unknown error occurred.";
+        const errorDetails = data.details || "No additional details were provided.";
+        console.error(`Background generation failed: ${errorMessage}`, errorDetails);
+        throw new Error(errorMessage);
       }
-      const { backgroundUrl } = await response.json();
-      setGeneratedBackground(backgroundUrl);
+
+      setGeneratedBackground(data.backgroundUrl);
       toast({ title: "Background Generated", description: "The AI background has been applied." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating background:", error);
       toast({
         title: "Failed to Generate Background",
-        description: "An error occurred while generating the background.",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleRender = async () => {
+    if (!selection || !videoUrl) {
+      toast({ title: "Cannot Render", description: "Please select a clip to render first.", variant: "destructive" });
+      return;
+    }
+
+    setIsRendering(true);
+    try {
+      const payload = {
+        videoUrl,
+        transcript,
+        selection,
+        generatedBackground,
+        captionStyle: {
+          textColor,
+          highlightColor,
+          outlineColor,
+          fontFamily,
+          fontSize,
+        },
+        transform,
+      };
+
+      const response = await fetch("/api/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = data.error || "An unknown rendering error occurred.";
+        const errorDetails = data.details || "No additional details were provided.";
+        console.error(`Rendering failed: ${errorMessage}`, errorDetails);
+        throw new Error(errorMessage);
+      }
+      
+      toast({ title: "Render Started", description: "Your video is being created. We'll notify you when it's ready." });
+
+      // In a real app, you would likely open the returned URL or handle it in another way.
+      // For now, we just log it.
+      console.log("Rendered video URL:", data.videoUrl);
+      window.open(data.videoUrl, '_blank');
+
+    } catch (error: any) {
+      console.error("Error rendering video:", error);
+      toast({
+        title: "Failed to Render Video",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsRendering(false);
     }
   };
 
@@ -237,6 +301,8 @@ export default function Home() {
             isGenerating={isGenerating}
             onGenerateBackground={handleGenerateBackground}
             generatedBackground={generatedBackground}
+            isRendering={isRendering}
+            onRender={handleRender}
             currentTime={currentTime}
             isPlaying={isPlaying}
             setIsPlaying={setIsPlaying}

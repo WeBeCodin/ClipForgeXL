@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Selection, TranscriptWord, Transform } from "@/lib/types";
-import { Sparkles, Scissors, Loader2, Wand2, Play, Pause } from "lucide-react";
+import { Sparkles, Scissors, Loader2, Wand2, Play, Pause, Download } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import { CaptionControls } from "./CaptionControls";
@@ -18,6 +18,8 @@ type ClippingControlsProps = {
   isGenerating: boolean;
   onGenerateBackground: (prompt: string) => void;
   generatedBackground: string | null;
+  isRendering: boolean;
+  onRender: () => void;
   transcript: TranscriptWord[];
   videoRef: RefObject<HTMLVideoElement>;
   isPlaying: boolean;
@@ -43,6 +45,8 @@ export function ClippingControls({
   isGenerating,
   onGenerateBackground,
   generatedBackground,
+  isRendering,
+  onRender,
   transcript,
   videoRef,
   isPlaying,
@@ -69,16 +73,6 @@ export function ClippingControls({
       .filter(word => word.start >= selection.start && word.end <= selection.end)
       .map(word => word.punctuated_word)
       .join(" ");
-  };
-
-  const handleCreateClip = () => {
-    // Placeholder for clip creation logic
-    console.log("Creating clip from", selection);
-    toast({
-        title: "Feature Not Implemented",
-        description: "Clip creation will be added in a future step.",
-        variant: "destructive"
-    });
   };
 
   const handlePlayPause = () => {
@@ -164,8 +158,13 @@ export function ClippingControls({
                     {isPlaying ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                     {isPlaying ? 'Pause' : 'Play'}
                 </Button>
-                <Button onClick={handleCreateClip} size="lg" className="flex-1">
-                    Create Clip
+                <Button onClick={onRender} disabled={isRendering} size="lg" className="flex-1">
+                    {isRendering ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    {isRendering ? 'Rendering...' : 'Download Clip'}
                 </Button>
               </div>
           </div>

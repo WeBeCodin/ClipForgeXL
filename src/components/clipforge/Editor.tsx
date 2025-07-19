@@ -16,6 +16,8 @@ type EditorProps = {
   isGenerating: boolean;
   onGenerateBackground: (prompt: string) => void;
   generatedBackground: string | null;
+  isRendering: boolean;
+  onRender: () => void;
   currentTime: number;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
@@ -45,6 +47,8 @@ export function Editor({
   isGenerating,
   onGenerateBackground,
   generatedBackground,
+  isRendering,
+  onRender,
   currentTime,
   isPlaying,
   setIsPlaying,
@@ -96,6 +100,8 @@ export function Editor({
         isGenerating={isGenerating}
         onGenerateBackground={onGenerateBackground}
         generatedBackground={generatedBackground}
+        isRendering={isRendering}
+        onRender={onRender}
         transcript={transcript}
         videoRef={videoRef}
         isPlaying={isPlaying}

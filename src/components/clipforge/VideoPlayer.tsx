@@ -119,6 +119,7 @@ export function VideoPlayer({
                 fontFamily: fontFamily,
                 fontSize: `${fontSize}rem`,
                 color: textColor,
+                whiteSpace: 'nowrap', // This will prevent the text from wrapping
                 textShadow: `
                   -2px -2px 0 ${outlineColor},  
                    2px -2px 0 ${outlineColor},
