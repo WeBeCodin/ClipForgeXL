@@ -1,70 +1,53 @@
-
-// functions/src/ai/transcribe-video.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import * as dotenv from "dotenv";
+import { Storage } from "@google-cloud/storage";
 
-// Load environment variables from .env file
-dotenv.config();
+const storage = new Storage();
 
-// Initialize the new GoogleGenerativeAI class with the API key
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+interface Transcription {
+  words: {
+    word: string;
+    start: number;
+    end: number;
+    punctuated_word: string;
+  }[];
+}
 
-/**
- * Generates a transcription with word-level timestamps from a video in GCS.
- * @param bucketName The name of the Google Cloud Storage bucket.
- * @param filePath The path to the video file within the bucket.
- * @returns A promise that resolves to the structured transcription data.
- */
-export async function transcribeVideo(bucketName: string, filePath: string): Promise<any> {
-  const videoGcsUri = `gs://${bucketName}/${filePath}`;
+async function fileToGenerativePart(bucketName: string, filePath: string) {
+  const bucket = storage.bucket(bucketName);
+  const file = bucket.file(filePath);
 
-  try {
-    const videoFilePart = {
-      fileData: {
-        mimeType: "video/mp4",
-        fileUri: videoGcsUri,
-      },
-    };
-    
-    const prompt = `
-      Please provide a detailed, verbatim transcription of the audio in this video file.
-      The output should be a JSON object containing a single key "words", which is an array of objects.
-      Each object in the "words" array should have the following properties:
-      - "word": The transcribed word.
-      - "punctuated_word": The transcribed word with punctuation.
-      - "start": The start time of the word in seconds.
-      - "end": The end time of the word in seconds.
-    `;
-    
-    const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-pro-latest",
-        generationConfig: {
-          responseMimeType: "application/json",
-        },
-    });
+  const [metadata] = await file.getMetadata();
+  const mimeType = metadata.contentType;
 
-    const result = await model.generateContent([prompt, videoFilePart]);
-
-    const candidate = result.response.candidates?.[0];
-
-    if (!candidate || !candidate.content || !candidate.content.parts) {
-      throw new Error("Transcription failed: No candidates returned by the model.");
-    }
-    const transcriptionText = candidate.content.parts.map(part => part.text).join("");
-    
-    // The response is now guaranteed to be a JSON string.
-    const transcription = JSON.parse(transcriptionText);
-    
-    console.log("Transcription generation completed successfully.");
- 
-    if (!transcription || !transcription.words) {
-      throw new Error("Transcription failed: No words were returned by the model.");
-    }
-
-    return transcription;
-
- } catch (error) {
-    console.error("An error occurred in the transcribeVideo workflow:", error);
-    throw new Error(`Failed to transcribe video: ${error instanceof Error? error.message : String(error)}`);
+  if (!mimeType) {
+    throw new Error(`Could not determine MIME type for file: ${filePath}`);
   }
+
+  const [buffer] = await file.download();
+
+  return {
+    inlineData: {
+      data: buffer.toString("base64"),
+      mimeType,
+    },
+  };
+}
+
+export async function transcribeVideo(
+  bucketName: string,
+  filePath: string
+): Promise<Transcription> {
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+
+  const videoPart = await fileToGenerativePart(bucketName, filePath);
+
+  const prompt =
+    "Transcribe this video and provide the output in JSON format with word-level timestamps. The JSON should be an object with a single key, 'words', which is an array of objects. Each object should have 'word', 'start', 'end', and 'punctuated_word' keys.";
+
+  const result = await model.generateContent([prompt, videoPart]);
+  const response = result.response;
+  const text = response.text().replace(/```json|```/g, "").trim();
+
+  return JSON.parse(text);
 }

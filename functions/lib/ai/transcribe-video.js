@@ -1,61 +1,39 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.transcribeVideo = transcribeVideo;
-// functions/src/ai/transcribe-video.ts
-const generative_ai_1 = require("@google/generative-ai");
-const dotenv = require("dotenv");
-// Load environment variables from .env file
-dotenv.config();
-// Initialize the new GoogleGenerativeAI class with the API key
-const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-/**
- * Generates a transcription with word-level timestamps from a video in GCS.
- * @param bucketName The name of the Google Cloud Storage bucket.
- * @param filePath The path to the video file within the bucket.
- * @returns A promise that resolves to the structured transcription data.
- */
+const _google_generative_ai_1 = require("@google-generative-ai");
+const storage_1 = require("@google-cloud/storage");
+const storage = new storage_1.Storage();
+// Converts a file from Google Cloud Storage into a Base64-encoded string
+async function fileToGenerativePart(bucketName, filePath) {
+    const bucket = storage.bucket(bucketName);
+    const file = bucket.file(filePath);
+    const [metadata] = await file.getMetadata();
+    const mimeType = metadata.contentType;
+    if (!mimeType) {
+        throw new Error(`Could not determine MIME type for file: ${filePath}`);
+    }
+    const [buffer] = await file.download();
+    return {
+        inlineData: {
+            data: buffer.toString("base64"),
+            mimeType,
+        },
+    };
+}
+// Add an explicit return type to the function
 async function transcribeVideo(bucketName, filePath) {
-    var _a;
-    const videoGcsUri = `gs://${bucketName}/${filePath}`;
-    try {
-        const videoFilePart = {
-            fileData: {
-                mimeType: "video/mp4",
-                fileUri: videoGcsUri,
-            },
-        };
-        const prompt = `
-      Please provide a detailed, verbatim transcription of the audio in this video file.
-      The output should be a JSON object containing a single key "words", which is an array of objects.
-      Each object in the "words" array should have the following properties:
-      - "word": The transcribed word.
-      - "punctuated_word": The transcribed word with punctuation.
-      - "start": The start time of the word in seconds.
-      - "end": The end time of the word in seconds.
-    `;
-        const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-pro-latest",
-            generationConfig: {
-                responseMimeType: "application/json",
-            },
-        });
-        const result = await model.generateContent([prompt, videoFilePart]);
-        const candidate = (_a = result.response.candidates) === null || _a === void 0 ? void 0 : _a[0];
-        if (!candidate || !candidate.content || !candidate.content.parts) {
-            throw new Error("Transcription failed: No candidates returned by the model.");
-        }
-        const transcriptionText = candidate.content.parts.map(part => part.text).join("");
-        // The response is now guaranteed to be a JSON string.
-        const transcription = JSON.parse(transcriptionText);
-        console.log("Transcription generation completed successfully.");
-        if (!transcription || !transcription.words) {
-            throw new Error("Transcription failed: No words were returned by the model.");
-        }
-        return transcription;
-    }
-    catch (error) {
-        console.error("An error occurred in the transcribeVideo workflow:", error);
-        throw new Error(`Failed to transcribe video: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    const genAI = new _google_generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+    const videoPart = await fileToGenerativePart(bucketName, filePath);
+    const prompt = "Transcribe this video and provide the output in JSON format with word-level timestamps. The JSON should be an object with a single key, 'words', which is an array of objects. Each object should have 'word', 'start', 'end', and 'punctuated_word' keys.";
+    const result = await model.generateContent([prompt, videoPart]);
+    const response = result.response;
+    const text = response.text().replace(/```json
+        | `` `/g, "").trim();
+  
+  return JSON.parse(text);
+}
+    );
 }
 //# sourceMappingURL=transcribe-video.js.map

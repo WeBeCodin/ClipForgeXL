@@ -16,22 +16,19 @@ export const onVideoUpload = functions.runWith({
     const bucketName = object.bucket;
     const filePath = object.name;
 
-    // Using functions.logger for structured logging
     const { logger } = functions;
 
-    // Exit if this is a folder, or not in the 'uploads' folder.
     if (!filePath || !filePath.startsWith("uploads/")) {
         logger.log(`Not a valid video upload or not in the correct folder: ${filePath}`);
         return null;
     }
     
-    // Exit if this is a directory marker.
     if (filePath.endsWith('/')) {
         logger.log(`This is a folder marker, skipping: ${filePath}`);
         return null;
     }
 
-    const uid = filePath.split('/')[1]; // Assumes path is "uploads/{uid}/filename"
+    const uid = filePath.split('/')[1]; 
     if (!uid) {
         logger.error(`Could not determine UID from path: ${filePath}`);
         return null;
@@ -39,7 +36,6 @@ export const onVideoUpload = functions.runWith({
 
     logger.log(`Video upload detected: ${filePath} by user ${uid}.`);
     
-    // Create a document in Firestore to track the transcription status
     const videoDocId = `${uid}_${path.basename(filePath)}`;
     const videoDocRef = db.collection("videos").doc(videoDocId);
 
@@ -56,30 +52,23 @@ export const onVideoUpload = functions.runWith({
         logger.log(`Starting transcription for ${filePath}...`);
         const transcription = await transcribeVideo(bucketName, filePath);
         
-        logger.log(`Transcription successful for ${filePath}. Updating Firestore with status 'completed'.`);
-        // Return the promise chain to ensure the function waits for the update to complete.
+        logger.log(`Transcription successful for ${filePath}. Updating Firestore.`);
         return videoDocRef.update({
             status: "completed",
-            transcription: transcription.words, // Store the array of words
+            transcription: transcription.words,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }).then(() => {
-            logger.log(`Firestore status updated to 'completed' for ${videoDocId}.`);
         });
 
     } catch (error) {
         logger.error(`Transcription or database update failed for ${filePath}:`, error);
-        // Return the promise chain to ensure the function waits for the update to complete.
         return videoDocRef.update({
             status: "failed",
             error: error instanceof Error ? error.message : "Unknown error",
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }).then(() => {
-            logger.log(`Firestore status updated to 'failed' for ${videoDocId}.`);
         });
     }
 });
 
-// This function is callable from the client-side application.
 export const renderVideo = functions.https.onCall(async (data, context) => {
     const { logger } = functions;
     
@@ -124,23 +113,51 @@ export const renderVideo = functions.https.onCall(async (data, context) => {
             }
         });
 
-        // Create captions
+        const sentences = [];
+        let currentSentence = [];
         for (const word of transcript) {
-            if (word.start >= selection.start && word.end <= selection.end) {
+            currentSentence.push(word);
+            if (word.punctuated_word.endsWith('.') || word.punctuated_word.endsWith('?') || word.punctuated_word.endsWith('!')) {
+                sentences.push(currentSentence);
+                currentSentence = [];
+            }
+        }
+        if (currentSentence.length > 0) sentences.push(currentSentence);
+
+        for (const sentence of sentences) {
+            const sentenceStart = sentence[0].start;
+            const sentenceEnd = sentence[sentence.length - 1].end;
+
+            if (sentenceStart < selection.end && sentenceEnd > selection.start) {
+                const karaokeWords = sentence.map(word => ({
+                    word: word.word,
+                    start: word.start - sentenceStart,
+                    end: word.end - sentenceStart,
+                }));
+
                 await composition.layers.text({
-                    text: word.punctuated_word,
-                    position: {
-                        x: "50%",
-                        y: "80%",
-                    },
-                    size: captionStyle.fontSize,
+                    text: sentence.map(w => w.punctuated_word).join(" "),
                     color: captionStyle.textColor,
                     fontFamily: captionStyle.fontFamily,
-                    trim: {
-                        from: word.start - selection.start,
-                        to: word.end - selection.start,
+                    fontSize: captionStyle.fontSize * 10, // Convert rem to pixels
+                    position: { y: "80%" },
+                    style: {
+                      stroke: {
+                        color: captionStyle.outlineColor,
+                        width: 8,
+                      }
                     },
-                    // Add more styling options as needed
+                    trim: {
+                        from: sentenceStart - selection.start,
+                        to: sentenceEnd - selection.start,
+                    },
+                    animations: [{
+                        type: "karaoke",
+                        style: {
+                            color: captionStyle.highlightColor,
+                        },
+                        words: karaokeWords,
+                    }]
                 });
             }
         }
