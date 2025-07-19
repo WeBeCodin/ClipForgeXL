@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { app } from "@/lib/firebase"; // Using client-side initialization
+import { app } from "@/lib/firebase"; // The app export is now correctly typed
 import { z } from "zod";
 
 // This schema is now used on the client-side before calling the API, 
@@ -47,9 +47,7 @@ export async function POST(req: NextRequest) {
     const renderData = parseResult.data;
 
     // Initialize Cloud Functions and get a reference to the function
-    // Note: It's often better to initialize Firebase services once, but for serverless
-    // environments, this per-request initialization is straightforward.
-    const functions = getFunctions(app, "us-central1"); // Specify the region of your functions
+    const functions = getFunctions(app, "us-central1"); // app is now correctly typed
     const renderVideo = httpsCallable(functions, 'renderVideo');
 
     // Call the Cloud Function with the validated data

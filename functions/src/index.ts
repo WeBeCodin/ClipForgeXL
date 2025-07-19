@@ -2,7 +2,8 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import {transcribeVideo} from "./ai/transcribe-video";
-import *d* path from "path";
+import * as path from "path";
+import Editframe from "editframe";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -82,35 +83,77 @@ export const onVideoUpload = functions.runWith({
 export const renderVideo = functions.https.onCall(async (data, context) => {
     const { logger } = functions;
     
-    // 1. Validate input data (basic validation)
     if (!data.videoUrl || !data.selection) {
-        logger.error("Invalid data payload received.", data);
-        throw new functions.https.HttpsError(
-            'invalid-argument', 
-            'The function must be called with "videoUrl" and "selection" arguments.'
-        );
-    }
-    
-    // Optional: Authenticate the user if needed.
-    if (!context.auth) {
-        logger.warn("Render function called by an unauthenticated user.");
-        // Depending on your requirements, you might want to throw an error here.
+        throw new functions.https.HttpsError('invalid-argument', 'Missing required data.');
     }
 
-    logger.log("Received render request with data:", data);
+    try {
+        const editframe = new Editframe({
+            clientId: functions.config().editframe.client_id,
+            token: functions.config().editframe.token,
+        });
+        
+        const {
+            videoUrl,
+            transcript,
+            selection,
+            generatedBackground,
+            captionStyle,
+            transform,
+        } = data;
+        
+        const [width, height] = transform.aspectRatio === "9/16" ? [1080, 1920] : [1920, 1080];
 
-    // 2. Placeholder for the actual rendering logic
-    // This is where you would use a library like Remotion, FFMPEG, 
-    // or call a third-party video rendering API.
-    
-    // For now, we simulate a successful render.
-    const outputVideoUrl = "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4";
+        const composition = await editframe.videos.new({
+            dimensions: { width, height },
+            duration: selection.end - selection.start,
+        });
+        
+        if (generatedBackground) {
+            await composition.layers.image({
+                fileUrl: generatedBackground,
+            });
+        }
+        
+        await composition.layers.video({
+            fileUrl: videoUrl,
+            trim: { from: selection.start, to: selection.end },
+            transform: {
+                scale: transform.zoom,
+                position: transform.pan,
+            }
+        });
 
-    logger.log(`Simulated rendering. Returning dummy URL: ${outputVideoUrl}`);
-    
-    // 3. Return the URL of the rendered video.
-    return {
-        message: "Render job started successfully (simulation).",
-        videoUrl: outputVideoUrl,
-    };
+        // Create captions
+        for (const word of transcript) {
+            if (word.start >= selection.start && word.end <= selection.end) {
+                await composition.layers.text({
+                    text: word.punctuated_word,
+                    position: {
+                        x: "50%",
+                        y: "80%",
+                    },
+                    size: captionStyle.fontSize,
+                    color: captionStyle.textColor,
+                    fontFamily: captionStyle.fontFamily,
+                    trim: {
+                        from: word.start - selection.start,
+                        to: word.end - selection.start,
+                    },
+                    // Add more styling options as needed
+                });
+            }
+        }
+        
+        await composition.encode();
+        
+        return {
+            message: "Render successful.",
+            videoUrl: composition.url,
+        };
+        
+    } catch (error) {
+        logger.error("Error rendering video with Editframe:", error);
+        throw new functions.https.HttpsError("internal", "Failed to render video.");
+    }
 });
