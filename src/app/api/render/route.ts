@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "@/lib/firebase"; // Using client-side initialization
 import { z } from "zod";
 
-// Defines the expected structure of the data sent to the API.
+// This schema is now used on the client-side before calling the API, 
+// and also in the Cloud Function for validation.
 const renderRequestSchema = z.object({
   videoUrl: z.string().url(),
-  transcript: z.array(
-    z.object({
-      word: z.string(),
-      start: z.number(),
-      end: z.number(),
-      punctuated_word: z.string(),
-    })
-  ),
-  selection: z.object({
+  transcript: z.array(z.object({
+    word: z.string(),
     start: z.number(),
     end: z.number(),
-  }),
-  generatedBackground: z.string().url().optional(),
+    punctuated_word: z.string(),
+  })),
+  selection: z.object({ start: z.number(), end: z.number() }),
+  generatedBackground: z.string().url().optional().nullable(),
   captionStyle: z.object({
     textColor: z.string(),
     highlightColor: z.string(),
@@ -31,43 +29,50 @@ const renderRequestSchema = z.object({
   }),
 });
 
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // 1. Validate the incoming data against the schema.
+    // The validation is important here to give immediate feedback 
+    // before invoking the Cloud Function.
     const parseResult = renderRequestSchema.safeParse(body);
     if (!parseResult.success) {
-      console.error("Invalid render request:", parseResult.error.flatten());
       return NextResponse.json(
-        { 
-          error: "Invalid request payload.",
-          details: parseResult.error.flatten().fieldErrors 
-        }, 
+        { error: "Invalid request payload.", details: parseResult.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
     
     const renderData = parseResult.data;
 
-    // 2. Placeholder for the actual rendering logic.
-    // In a real application, this would trigger a serverless function, a message queue, or a dedicated rendering server.
-    console.log("Received render request:", renderData);
-    
-    // For now, we'll just simulate a successful render and return a dummy video URL.
-    const outputVideoUrl = "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4";
+    // Initialize Cloud Functions and get a reference to the function
+    // Note: It's often better to initialize Firebase services once, but for serverless
+    // environments, this per-request initialization is straightforward.
+    const functions = getFunctions(app, "us-central1"); // Specify the region of your functions
+    const renderVideo = httpsCallable(functions, 'renderVideo');
 
-    return NextResponse.json({ 
-      message: "Render job started successfully.",
-      videoUrl: outputVideoUrl 
-    });
+    // Call the Cloud Function with the validated data
+    const result = await renderVideo(renderData);
+    
+    // The result from the Cloud Function will contain the data we returned,
+    // in this case, a message and the video URL.
+    const { data }: any = result;
+
+    return NextResponse.json(data);
 
   } catch (error: any) {
-    console.error("Error processing render request:", error);
+    console.error("Error calling renderVideo Cloud Function:", error);
+    
+    // The error object from a callable function contains more details
+    const code = error.code || 'unknown';
+    const message = error.message || 'An unknown error occurred.';
+    const details = error.details || {};
+
     return NextResponse.json(
       { 
-        error: "Failed to start the render process.",
-        details: error.message 
+        error: `Failed to start the render process: ${message}`,
+        details: { code, details }
       }, 
       { status: 500 }
     );

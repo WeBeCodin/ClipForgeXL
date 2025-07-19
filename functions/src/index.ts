@@ -2,7 +2,7 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import {transcribeVideo} from "./ai/transcribe-video";
-import * as path from "path";
+import *d* path from "path";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -76,4 +76,41 @@ export const onVideoUpload = functions.runWith({
             logger.log(`Firestore status updated to 'failed' for ${videoDocId}.`);
         });
     }
+});
+
+// This function is callable from the client-side application.
+export const renderVideo = functions.https.onCall(async (data, context) => {
+    const { logger } = functions;
+    
+    // 1. Validate input data (basic validation)
+    if (!data.videoUrl || !data.selection) {
+        logger.error("Invalid data payload received.", data);
+        throw new functions.https.HttpsError(
+            'invalid-argument', 
+            'The function must be called with "videoUrl" and "selection" arguments.'
+        );
+    }
+    
+    // Optional: Authenticate the user if needed.
+    if (!context.auth) {
+        logger.warn("Render function called by an unauthenticated user.");
+        // Depending on your requirements, you might want to throw an error here.
+    }
+
+    logger.log("Received render request with data:", data);
+
+    // 2. Placeholder for the actual rendering logic
+    // This is where you would use a library like Remotion, FFMPEG, 
+    // or call a third-party video rendering API.
+    
+    // For now, we simulate a successful render.
+    const outputVideoUrl = "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4";
+
+    logger.log(`Simulated rendering. Returning dummy URL: ${outputVideoUrl}`);
+    
+    // 3. Return the URL of the rendered video.
+    return {
+        message: "Render job started successfully (simulation).",
+        videoUrl: outputVideoUrl,
+    };
 });
