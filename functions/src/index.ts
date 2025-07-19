@@ -3,7 +3,7 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import {transcribeVideo} from "./ai/transcribe-video";
 import * as path from "path";
-import Editframe from "editframe";
+const Editframe = require("@editframe/editframe-js");
 
 admin.initializeApp();
 const db = admin.firestore();

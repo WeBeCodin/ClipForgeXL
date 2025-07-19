@@ -3,39 +3,27 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.transcribeVideo = transcribeVideo;
 // functions/src/ai/transcribe-video.ts
 const generative_ai_1 = require("@google/generative-ai");
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const storage_1 = require("@google-cloud/storage");
 const dotenv = require("dotenv");
 // Load environment variables from .env file
 dotenv.config();
 // Initialize the new GoogleGenerativeAI class with the API key
 const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const storage = new storage_1.Storage();
-function fileToGenerativePart(path, mimeType) {
-    return {
-        inlineData: {
-            data: Buffer.from(fs.readFileSync(path)).toString("base64"),
-            mimeType
-        },
-    };
-}
 /**
- * Downloads a video from GCS, generates a transcription with word-level timestamps, and cleans up all resources.
+ * Generates a transcription with word-level timestamps from a video in GCS.
  * @param bucketName The name of the Google Cloud Storage bucket.
  * @param filePath The path to the video file within the bucket.
  * @returns A promise that resolves to the structured transcription data.
  */
 async function transcribeVideo(bucketName, filePath) {
     var _a;
-    const tempFilePath = path.join(os.tmpdir(), path.basename(filePath));
+    const videoGcsUri = `gs://${bucketName}/${filePath}`;
     try {
-        // Step 1: Download the file from GCS to a temporary local directory
-        await storage.bucket(bucketName).file(filePath).download({ destination: tempFilePath });
-        console.log(`Successfully downloaded file from GCS to temporary path: ${tempFilePath}.`);
-        const videoFilePart = fileToGenerativePart(tempFilePath, "video/mp4");
-        // Step 2: Generate content using the video data
+        const videoFilePart = {
+            fileData: {
+                mimeType: "video/mp4",
+                fileUri: videoGcsUri,
+            },
+        };
         const prompt = `
       Please provide a detailed, verbatim transcription of the audio in this video file.
       The output should be a JSON object containing a single key "words", which is an array of objects.
@@ -68,13 +56,6 @@ async function transcribeVideo(bucketName, filePath) {
     catch (error) {
         console.error("An error occurred in the transcribeVideo workflow:", error);
         throw new Error(`Failed to transcribe video: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    finally {
-        // Clean up the temporary local file
-        if (fs.existsSync(tempFilePath)) {
-            fs.unlinkSync(tempFilePath);
-            console.log(`Successfully deleted temporary local file: ${tempFilePath}`);
-        }
     }
 }
 //# sourceMappingURL=transcribe-video.js.map

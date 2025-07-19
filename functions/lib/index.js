@@ -1,14 +1,18 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onVideoUpload = void 0;
+exports.renderVideo = exports.onVideoUpload = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const transcribe_video_1 = require("./ai/transcribe-video");
 const path = require("path");
+const Editframe = require("@editframe/editframe-js");
 admin.initializeApp();
 const db = admin.firestore();
 // This function is triggered when a file is uploaded to the /uploads/ GCS folder.
-exports.onVideoUpload = functions.storage.object().onFinalize(async (object) => {
+exports.onVideoUpload = functions.runWith({
+    timeoutSeconds: 540, // 9 minutes
+    memory: "1GB",
+}).storage.object().onFinalize(async (object) => {
     const bucketName = object.bucket;
     const filePath = object.name;
     // Using functions.logger for structured logging
@@ -63,6 +67,67 @@ exports.onVideoUpload = functions.storage.object().onFinalize(async (object) => 
         }).then(() => {
             logger.log(`Firestore status updated to 'failed' for ${videoDocId}.`);
         });
+    }
+});
+// This function is callable from the client-side application.
+exports.renderVideo = functions.https.onCall(async (data, context) => {
+    const { logger } = functions;
+    if (!data.videoUrl || !data.selection) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing required data.');
+    }
+    try {
+        const editframe = new Editframe({
+            clientId: functions.config().editframe.client_id,
+            token: functions.config().editframe.token,
+        });
+        const { videoUrl, transcript, selection, generatedBackground, captionStyle, transform, } = data;
+        const [width, height] = transform.aspectRatio === "9/16" ? [1080, 1920] : [1920, 1080];
+        const composition = await editframe.videos.new({
+            dimensions: { width, height },
+            duration: selection.end - selection.start,
+        });
+        if (generatedBackground) {
+            await composition.layers.image({
+                fileUrl: generatedBackground,
+            });
+        }
+        await composition.layers.video({
+            fileUrl: videoUrl,
+            trim: { from: selection.start, to: selection.end },
+            transform: {
+                scale: transform.zoom,
+                position: transform.pan,
+            }
+        });
+        // Create captions
+        for (const word of transcript) {
+            if (word.start >= selection.start && word.end <= selection.end) {
+                await composition.layers.text({
+                    text: word.punctuated_word,
+                    position: {
+                        x: "50%",
+                        y: "80%",
+                    },
+                    size: captionStyle.fontSize,
+                    color: captionStyle.textColor,
+                    fontFamily: captionStyle.fontFamily,
+                    trim: {
+                        from: word.start - selection.start,
+                        to: word.end - selection.start,
+                    },
+                    // Add more styling options as needed
+                });
+            }
+        }
+        await composition.encode();
+        return {
+            message: "Render successful.",
+            videoUrl: composition.url,
+        };
+    }
+    catch (error) {
+        logger.error("Error rendering video with Editframe:", error);
+        throw new functions.https.HttpsError("internal", "Failed to render video.");
     }
 });
 //# sourceMappingURL=index.js.map
