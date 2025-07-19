@@ -1,6 +1,6 @@
 "use client";
 
-import { RefObject, useEffect } from "react";
+import { RefObject, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Selection, TranscriptWord, Transform } from "@/lib/types";
@@ -39,7 +39,8 @@ export function VideoPlayer({
   transform,
   generatedBackground,
 }: VideoPlayerProps) {
-  
+  const [dynamicFontSize, setDynamicFontSize] = useState(fontSize);
+
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -75,21 +76,39 @@ export function VideoPlayer({
   const getCurrentLine = () => {
     const activeWordIndex = transcript.findIndex(word => currentTime >= word.start && currentTime < word.end);
     if (activeWordIndex === -1) return null;
-
-    let lineStart = activeWordIndex;
-    while (lineStart > 0 && !transcript[lineStart - 1].punctuated_word.endsWith('.')) {
-      lineStart--;
+    
+    // Split transcript into sentences
+    const sentences = [];
+    let currentSentence = [];
+    for (const word of transcript) {
+        currentSentence.push(word);
+        if (word.punctuated_word.endsWith('.') || word.punctuated_word.endsWith('?') || word.punctuated_word.endsWith('!')) {
+            sentences.push(currentSentence);
+            currentSentence = [];
+        }
     }
-
-    let lineEnd = activeWordIndex;
-    while (lineEnd < transcript.length - 1 && !transcript[lineEnd].punctuated_word.endsWith('.')) {
-      lineEnd++;
+    if (currentSentence.length > 0) sentences.push(currentSentence);
+    
+    // Find the sentence that the current word belongs to
+    for (const sentence of sentences) {
+        if (sentence.some(word => word.start === transcript[activeWordIndex].start)) {
+            return sentence;
+        }
     }
-
-    return transcript.slice(lineStart, lineEnd + 1);
+    
+    return null;
   };
 
   const currentLine = getCurrentLine();
+
+  useEffect(() => {
+    if (currentLine) {
+      const lineLength = currentLine.map(w => w.punctuated_word).join(" ").length;
+      // Adjust font size based on line length
+      const newSize = Math.max(1, fontSize - (lineLength / 10)); // Simple formula, can be adjusted
+      setDynamicFontSize(newSize);
+    }
+  }, [currentLine, fontSize]);
 
   const [aspectRatioWidth, aspectRatioHeight] = transform.aspectRatio.split('/').map(Number);
 
@@ -110,16 +129,18 @@ export function VideoPlayer({
           }}
         />
         
-        {/* Captions Overlay */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full text-center p-4">
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-[90%] h-[15%] flex items-center justify-center">
           {currentLine && (
             <p 
-              className="font-bold"
+              className="font-bold text-center"
               style={{
                 fontFamily: fontFamily,
-                fontSize: `${fontSize}rem`,
+                fontSize: `${dynamicFontSize}rem`,
                 color: textColor,
-                whiteSpace: 'nowrap', // This will prevent the text from wrapping
+                lineHeight: 1.2,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 textShadow: `
                   -2px -2px 0 ${outlineColor},  
                    2px -2px 0 ${outlineColor},

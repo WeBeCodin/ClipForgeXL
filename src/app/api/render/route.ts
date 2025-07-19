@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { app } from "@/lib/firebase"; // The app export is now correctly typed
+import { app } from "@/lib/firebase"; 
 import { z } from "zod";
 
-// This schema is now used on the client-side before calling the API, 
-// and also in the Cloud Function for validation.
 const renderRequestSchema = z.object({
   videoUrl: z.string().url(),
   transcript: z.array(z.object({
@@ -34,8 +32,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // The validation is important here to give immediate feedback 
-    // before invoking the Cloud Function.
     const parseResult = renderRequestSchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json(
@@ -46,15 +42,12 @@ export async function POST(req: NextRequest) {
     
     const renderData = parseResult.data;
 
-    // Initialize Cloud Functions and get a reference to the function
-    const functions = getFunctions(app, "us-central1"); // app is now correctly typed
+    // Explicitly set the region to 'us-central1'
+    const functions = getFunctions(app, "us-central1"); 
     const renderVideo = httpsCallable(functions, 'renderVideo');
 
-    // Call the Cloud Function with the validated data
     const result = await renderVideo(renderData);
     
-    // The result from the Cloud Function will contain the data we returned,
-    // in this case, a message and the video URL.
     const { data }: any = result;
 
     return NextResponse.json(data);
@@ -62,7 +55,6 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Error calling renderVideo Cloud Function:", error);
     
-    // The error object from a callable function contains more details
     const code = error.code || 'unknown';
     const message = error.message || 'An unknown error occurred.';
     const details = error.details || {};
