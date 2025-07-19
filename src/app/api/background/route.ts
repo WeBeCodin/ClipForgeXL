@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const result = await model.generateContent(fullPrompt);
     const response = await result.response;
     const text = response.text().replace(/
-/g, ""); // Corrected: Remove newlines from the response
+/g, "");
 
     // Using the generated text to create a placeholder image URL
     return NextResponse.json({ backgroundUrl: `https://dummyimage.com/1080x1920/000/fff&text=${encodeURIComponent(text)}` });
