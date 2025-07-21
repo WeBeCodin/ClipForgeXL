@@ -7,8 +7,6 @@ import * as path from "path";
 import * as dotenv from "dotenv";
 dotenv.config();
 
-const Editframe = require("@editframe/editframe-js");
-
 admin.initializeApp();
 const db = admin.firestore();
 
@@ -71,6 +69,9 @@ export const renderVideo = functions.https.onCall(async (data, context) => {
             throw new functions.https.HttpsError("internal", "Server is not configured for video rendering.");
         }
 
+        const editframeModule = await import("@editframe/editframe-js");
+        const Editframe = (editframeModule as any).Editframe;
+
         const editframe = new Editframe({
             clientId: clientId,
             token: token,
@@ -85,15 +86,13 @@ export const renderVideo = functions.https.onCall(async (data, context) => {
         });
 
         if (generatedBackground) {
-            await composition.layers.image({
-                fileUrl: generatedBackground,
-            });
+            await composition.addImage(generatedBackground);
         }
 
-        await composition.layers.video({
-            fileUrl: videoUrl,
-            trim: { from: selection.start, to: selection.end },
-            transform: { scale: transform.zoom, position: transform.pan }
+        await composition.addVideo(videoUrl, {
+            trim: { start: selection.start, end: selection.end },
+            position: transform.pan,
+            size: { scale: transform.zoom }
         });
 
         const sentences = [];
@@ -122,24 +121,36 @@ export const renderVideo = functions.https.onCall(async (data, context) => {
                     end: word.end - sentenceStart,
                 }));
 
-                await composition.layers.text({
+                await composition.addText({
                     text: sentence.map(w => w.punctuated_word).join(" "),
                     color: captionStyle.textColor,
                     fontFamily: captionStyle.fontFamily,
                     fontSize: captionStyle.fontSize * 10,
+                    stroke: {
+                        color: captionStyle.outlineColor,
+                        width: 8,
+                    },
+                    animations: [{
+                        type: "karaoke",
+                        style: {
+                            color: captionStyle.highlightColor,
+                        },
+                        words: karaokeWords,
+                    }]
+                }, {
                     position: { y: "80%" },
-                    style: { stroke: { color: captionStyle.outlineColor, width: 8 } },
-                    trim: { from: sentenceStart - selection.start, to: sentenceEnd - selection.start },
-                    animations: [{ type: "karaoke", style: { color: captionStyle.highlightColor }, words: karaokeWords }]
+                    trim: { start: sentenceStart - selection.start, end: sentenceEnd - selection.start },
                 });
             }
         }
 
         await composition.encode();
 
+        const resultUrl = composition.url || composition.downloadUrl || composition.outputUrl;
+
         return {
             message: "Render successful.",
-            videoUrl: composition.url,
+            videoUrl: resultUrl,
         };
     } catch (error) {
         logger.error("Video rendering pipeline failed with error:", error);

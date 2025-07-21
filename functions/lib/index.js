@@ -1,13 +1,45 @@
 'use strict';
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.renderVideo = exports.onVideoUpload = void 0;
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
+const functions = __importStar(require("firebase-functions"));
+const admin = __importStar(require("firebase-admin"));
 const transcribe_video_1 = require("./ai/transcribe-video");
-const path = require("path");
-const dotenv = require("dotenv");
+const path = __importStar(require("path"));
+const dotenv = __importStar(require("dotenv"));
 dotenv.config();
-// DO NOT add any top-level import/require for Editframe here.
 admin.initializeApp();
 const db = admin.firestore();
 exports.onVideoUpload = functions.runWith({
@@ -65,9 +97,12 @@ exports.renderVideo = functions.https.onCall(async (data, context) => {
             logger.error("CRITICAL: Editframe credentials not found in process.env.");
             throw new functions.https.HttpsError("internal", "Server is not configured for video rendering.");
         }
-        // DYNAMIC ESM IMPORT as instructed.
-        const { default: Editframe } = await Promise.resolve().then(() => require("@editframe/editframe-js"));
-        const editframe = new Editframe({ clientId, token });
+        const editframeModule = await Promise.resolve().then(() => __importStar(require("@editframe/editframe-js")));
+        const Editframe = editframeModule.Editframe;
+        const editframe = new Editframe({
+            clientId: clientId,
+            token: token,
+        });
         const { videoUrl, transcript, selection, generatedBackground, captionStyle, transform } = data;
         const [width, height] = transform.aspectRatio === "9/16" ? [1080, 1920] : [1920, 1080];
         const composition = await editframe.videos.new({
@@ -75,18 +110,20 @@ exports.renderVideo = functions.https.onCall(async (data, context) => {
             duration: selection.end - selection.start,
         });
         if (generatedBackground) {
-            await composition.layers.image({ fileUrl: generatedBackground });
+            await composition.addImage(generatedBackground);
         }
-        await composition.layers.video({
-            fileUrl: videoUrl,
-            trim: { from: selection.start, to: selection.end },
-            transform: { scale: transform.zoom, position: transform.pan }
+        await composition.addVideo(videoUrl, {
+            trim: { start: selection.start, end: selection.end },
+            position: transform.pan,
+            size: { scale: transform.zoom }
         });
         const sentences = [];
         let currentSentence = [];
         for (const word of transcript) {
             currentSentence.push(word);
-            if (word.punctuated_word.endsWith('.') || word.punctuated_word.endsWith('?') || word.punctuated_word.endsWith('!')) {
+            if (word.punctuated_word.endsWith('.') ||
+                word.punctuated_word.endsWith('?') ||
+                word.punctuated_word.endsWith('!')) {
                 sentences.push(currentSentence);
                 currentSentence = [];
             }
@@ -102,22 +139,33 @@ exports.renderVideo = functions.https.onCall(async (data, context) => {
                     start: word.start - sentenceStart,
                     end: word.end - sentenceStart,
                 }));
-                await composition.layers.text({
+                await composition.addText({
                     text: sentence.map(w => w.punctuated_word).join(" "),
                     color: captionStyle.textColor,
                     fontFamily: captionStyle.fontFamily,
                     fontSize: captionStyle.fontSize * 10,
+                    stroke: {
+                        color: captionStyle.outlineColor,
+                        width: 8,
+                    },
+                    animations: [{
+                            type: "karaoke",
+                            style: {
+                                color: captionStyle.highlightColor,
+                            },
+                            words: karaokeWords,
+                        }]
+                }, {
                     position: { y: "80%" },
-                    style: { stroke: { color: captionStyle.outlineColor, width: 8 } },
-                    trim: { from: sentenceStart - selection.start, to: sentenceEnd - selection.start },
-                    animations: [{ type: "karaoke", style: { color: captionStyle.highlightColor }, words: karaokeWords }]
+                    trim: { start: sentenceStart - selection.start, end: sentenceEnd - selection.start },
                 });
             }
         }
         await composition.encode();
+        const resultUrl = composition.url || composition.downloadUrl || composition.outputUrl;
         return {
             message: "Render successful.",
-            videoUrl: composition.url,
+            videoUrl: resultUrl,
         };
     }
     catch (error) {
