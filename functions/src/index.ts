@@ -3,7 +3,7 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import {transcribeVideo} from "./ai/transcribe-video";
 import * as path from "path";
-const Editframe = require("@editframe/editframe-js");
+import { Editframe } from "@editframe/editframe-js";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -79,7 +79,6 @@ export const renderVideo = functions.https.onCall(async (data, context) => {
     try {
         logger.log("Initializing Editframe with credentials...");
         const editframe = new Editframe({
-            clientId: functions.config().editframe.client_id,
             token: functions.config().editframe.token,
         });
         
@@ -175,6 +174,10 @@ export const renderVideo = functions.https.onCall(async (data, context) => {
                     
                     logger.log(`Adding caption ${i + 1}: "${sentenceText}" (${adjustedStart}s - ${adjustedEnd}s)`);
                     
+                    // Calculate Y position as pixel value instead of percentage
+                    const yPosition = captionStyle?.position === "top" ? 
+                        Math.round(height * 0.2) : Math.round(height * 0.8);
+                    
                     await composition.addText({
                         text: sentenceText,
                         color: captionStyle?.textColor || "#ffffff",
@@ -185,7 +188,7 @@ export const renderVideo = functions.https.onCall(async (data, context) => {
                     }, {
                         position: { 
                             x: "center", 
-                            y: captionStyle?.position === "top" ? "20%" : "80%" 
+                            y: yPosition
                         },
                         timeline: { start: adjustedStart },
                         trim: { 
@@ -206,9 +209,9 @@ export const renderVideo = functions.https.onCall(async (data, context) => {
             success: true,
             message: "Video rendered successfully",
             videoId: video.id,
-            downloadUrl: video.download_url,
-            streamUrl: video.stream_url,
-            isReady: video.is_ready,
+            downloadUrl: video.downloadUrl,
+            streamUrl: video.streamUrl,
+            isReady: video.isReady,
         };
         
     } catch (error) {

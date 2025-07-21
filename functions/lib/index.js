@@ -38,7 +38,7 @@ const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const transcribe_video_1 = require("./ai/transcribe-video");
 const path = __importStar(require("path"));
-const Editframe = require("@editframe/editframe-js");
+const editframe_js_1 = require("@editframe/editframe-js");
 admin.initializeApp();
 const db = admin.firestore();
 // This function is triggered when a file is uploaded to the /uploads/ GCS folder.
@@ -100,8 +100,7 @@ exports.renderVideo = functions.https.onCall(async (data, context) => {
     }
     try {
         logger.log("Initializing Editframe with credentials...");
-        const editframe = new Editframe({
-            clientId: functions.config().editframe.client_id,
+        const editframe = new editframe_js_1.Editframe({
             token: functions.config().editframe.token,
         });
         const { videoUrl, transcript, selection, generatedBackground, captionStyle, transform, } = data;
@@ -176,6 +175,9 @@ exports.renderVideo = functions.https.onCall(async (data, context) => {
                     const adjustedEnd = Math.min(duration, sentenceEnd - selection.start);
                     const sentenceText = sentence.map(w => w.punctuated_word).join(" ");
                     logger.log(`Adding caption ${i + 1}: "${sentenceText}" (${adjustedStart}s - ${adjustedEnd}s)`);
+                    // Calculate Y position as pixel value instead of percentage
+                    const yPosition = (captionStyle === null || captionStyle === void 0 ? void 0 : captionStyle.position) === "top" ?
+                        Math.round(height * 0.2) : Math.round(height * 0.8);
                     await composition.addText({
                         text: sentenceText,
                         color: (captionStyle === null || captionStyle === void 0 ? void 0 : captionStyle.textColor) || "#ffffff",
@@ -186,7 +188,7 @@ exports.renderVideo = functions.https.onCall(async (data, context) => {
                     }, {
                         position: {
                             x: "center",
-                            y: (captionStyle === null || captionStyle === void 0 ? void 0 : captionStyle.position) === "top" ? "20%" : "80%"
+                            y: yPosition
                         },
                         timeline: { start: adjustedStart },
                         trim: {
@@ -204,9 +206,9 @@ exports.renderVideo = functions.https.onCall(async (data, context) => {
             success: true,
             message: "Video rendered successfully",
             videoId: video.id,
-            downloadUrl: video.download_url,
-            streamUrl: video.stream_url,
-            isReady: video.is_ready,
+            downloadUrl: video.downloadUrl,
+            streamUrl: video.streamUrl,
+            isReady: video.isReady,
         };
     }
     catch (error) {
