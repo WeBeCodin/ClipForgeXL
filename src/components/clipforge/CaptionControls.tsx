@@ -40,6 +40,11 @@ export function CaptionControls({
   fontSize,
   setFontSize,
 }: CaptionControlsProps) {
+  // Convert slider value (1-5) to pixel display value (16-80px)
+  const getDisplayPixels = (sliderValue: number): number => {
+    return Math.round(sliderValue * 16); // 1 = 16px, 2 = 32px, 3 = 48px, 4 = 64px, 5 = 80px
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -91,7 +96,7 @@ export function CaptionControls({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Font Size</Label>
+          <Label>Font Size ({getDisplayPixels(fontSize)}px)</Label>
           <Slider
             min={1}
             max={5}

@@ -1,7 +1,7 @@
 'use strict';
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import {transcribeVideo} from "./ai/transcribe-video";
+import { transcribeVideo } from "./ai/transcribe-video";
 import * as path from "path";
 
 admin.initializeApp();
@@ -11,7 +11,7 @@ const db = admin.firestore();
 export const onVideoUpload = functions.runWith({
     timeoutSeconds: 540, // 9 minutes
     memory: "1GB",
-}).storage.object().onFinalize(async (object) => {
+}).storage.object().onFinalize(async (object: any) => {
     const bucketName = object.bucket;
     const filePath = object.name;
 
@@ -34,24 +34,26 @@ export const onVideoUpload = functions.runWith({
     }
 
     logger.log(`Video upload detected: ${filePath} by user ${uid}.`);
-    
+
     const videoDocId = `${uid}_${path.basename(filePath)}`;
     const videoDocRef = db.collection("videos").doc(videoDocId);
 
     logger.log(`Creating Firestore document: /videos/${videoDocId}`);
+
     await videoDocRef.set({
         uid: uid,
         gcsPath: `gs://${bucketName}/${filePath}`,
         status: "processing",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
     logger.log(`Successfully created Firestore document for ${videoDocId}.`);
 
     try {
         logger.log(`Starting transcription for ${filePath}...`);
         const transcription = await transcribeVideo(bucketName, filePath);
-        
         logger.log(`Transcription successful for ${filePath}. Updating Firestore.`);
+
         return videoDocRef.update({
             status: "completed",
             transcription: transcription.words,
@@ -68,5 +70,5 @@ export const onVideoUpload = functions.runWith({
     }
 });
 
-// Export the new FFmpeg-based clip generator
-export { generateClip as renderVideo } from "./video/ffmpeg-processor";
+// Export the renderVideo function from the FFmpeg processor
+export { renderVideo } from './video/ffmpeg-processor';

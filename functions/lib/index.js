@@ -91,7 +91,7 @@ exports.onVideoUpload = functions.runWith({
         });
     }
 });
-// Export the new FFmpeg-based clip generator
+// Export the renderVideo function from the FFmpeg processor
 var ffmpeg_processor_1 = require("./video/ffmpeg-processor");
-Object.defineProperty(exports, "renderVideo", { enumerable: true, get: function () { return ffmpeg_processor_1.generateClip; } });
+Object.defineProperty(exports, "renderVideo", { enumerable: true, get: function () { return ffmpeg_processor_1.renderVideo; } });
 //# sourceMappingURL=index.js.map

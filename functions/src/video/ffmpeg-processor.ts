@@ -1,11 +1,14 @@
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import { Storage } from "@google-cloud/storage";
+import * as admin from "firebase-admin";
+import * as path from "path";
+import * as os from "os";
 import * as fs from "fs";
-import ffmpeg from "fluent-ffmpeg";  // Changed this line - default import instead of namespace
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegPath from "@ffmpeg-installer/ffmpeg";
 
-// Set FFmpeg path for Cloud Functions
-const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
-ffmpeg.setFfmpegPath(ffmpegPath);
+// Set FFmpeg path
+ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 const storage = new Storage();
 
@@ -16,285 +19,246 @@ interface TranscriptWord {
   punctuated_word: string;
 }
 
+interface Selection {
+  start: number;
+  end: number;
+}
+
 interface CaptionStyle {
-  textColor?: string;
-  fontFamily?: string;
-  fontSize?: number;
-  backgroundColor?: string;
-  position?: "top" | "bottom";
-  outlineColor?: string;
+  textColor: string;
+  highlightColor: string;
+  outlineColor: string;
+  fontFamily: string;
+  fontSize: number;
 }
 
-interface ClipRequest {
-  videoUrl: string;
-  transcript: TranscriptWord[];
-  selection: { start: number; end: number };
-  captionStyle?: CaptionStyle;
-  transform?: {
-    aspectRatio?: string;
-    zoom?: number;
-    pan?: { x: string | number; y: string | number };
-  };
+interface Transform {
+  pan: { x: number; y: number };
+  zoom: number;
+  aspectRatio: string;
 }
 
-export const generateClip = functions.runWith({
-  timeoutSeconds: 540,
-  memory: "8GB",
-}).https.onCall(async (data: ClipRequest, context) => {
-  const { logger } = functions;
-  
-  if (!data.videoUrl || !data.selection) {
-    throw new functions.https.HttpsError('invalid-argument', 'Missing required data.');
-  }
+interface VideoMetadata {
+  width: number;
+  height: number;
+  duration: number;
+}
 
-  try {
-    const {
-      videoUrl,
-      transcript,
-      selection,
-      captionStyle = {},
-      transform = {}
-    } = data;
-
-    logger.log("Starting clip generation:", {
-      videoUrl,
-      startTime: selection.start,
-      endTime: selection.end,
-      duration: selection.end - selection.start
-    });
-
-    // 1. Download source video to temp storage
-    const tempInputPath = await downloadVideoToTemp(videoUrl);
-    logger.log("Video downloaded to:", tempInputPath);
-
-    // 2. Generate captions for the selected segment
-    const captionsPath = await generateCaptionsFile(
-      transcript, 
-      selection, 
-      captionStyle
-    );
-    logger.log("Captions generated:", captionsPath);
-
-    // 3. Process video with FFmpeg
-    const outputPath = await processVideoWithFFmpeg(
-      tempInputPath,
-      selection.start,
-      selection.end - selection.start,
-      captionsPath,
-      transform
-    );
-    logger.log("Video processed:", outputPath);
-
-    // 4. Upload result to Cloud Storage
-    const finalUrl = await uploadClipToStorage(outputPath);
-    logger.log("Clip uploaded:", finalUrl);
-
-    // 5. Cleanup temp files
-    cleanupTempFiles([tempInputPath, captionsPath, outputPath]);
-
-    return {
-      success: true,
-      clipUrl: finalUrl,
-      duration: selection.end - selection.start,
-      message: "Clip generated successfully"
-    };
-
-  } catch (error) {
-    logger.error("Clip generation failed:", error);
-    throw new functions.https.HttpsError(
-      "internal", 
-      `Failed to generate clip: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
-  }
-});
-
+// Helper function to download video from GCS to temp directory
 async function downloadVideoToTemp(videoUrl: string): Promise<string> {
-  const tempPath = `/tmp/input_${Date.now()}.mp4`;
+  console.log("Downloading video from:", videoUrl);
   
-  const gcsMatch = videoUrl.match(/gs:\/\/([^\/]+)\/(.+)/);
-  if (!gcsMatch) {
-    throw new Error("Invalid GCS URL format");
+  let gcsPath: string;
+  
+  // Handle both GCS URIs and Firebase download URLs
+  if (videoUrl.startsWith('gs://')) {
+    gcsPath = videoUrl.replace('gs://', '');
+  } else {
+    // Extract GCS path from Firebase download URL
+    const urlMatch = videoUrl.match(/\/o\/(.+?)\?/);
+    if (!urlMatch) {
+      throw new Error("Invalid video URL format");
+    }
+    gcsPath = decodeURIComponent(urlMatch[1]);
   }
   
-  const [, bucketName, filePath] = gcsMatch;
+  const [bucketName, ...pathParts] = gcsPath.split('/');
+  const filePath = pathParts.join('/');
+  
   const bucket = storage.bucket(bucketName);
   const file = bucket.file(filePath);
   
-  await file.download({ destination: tempPath });
-  return tempPath;
+  const tempFilePath = path.join(os.tmpdir(), `input_${Date.now()}.mp4`);
+  
+  await file.download({ destination: tempFilePath });
+  console.log("Video downloaded to:", tempFilePath);
+  
+  return tempFilePath;
 }
 
-async function generateCaptionsFile(
-  transcript: TranscriptWord[],
-  selection: { start: number; end: number },
-  captionStyle: CaptionStyle
-): Promise<string> {
-  const captionsPath = `/tmp/captions_${Date.now()}.ass`;
-  
-  const relevantWords = transcript.filter(word => 
-    word.start >= selection.start && word.end <= selection.end
-  );
-
-  if (relevantWords.length === 0) {
-    fs.writeFileSync(captionsPath, generateEmptyASS());
-    return captionsPath;
-  }
-
-  const sentences = groupWordsIntoSentences(relevantWords);
-  
-  const assContent = generateASSContent(sentences, selection.start, captionStyle);
-  
-  fs.writeFileSync(captionsPath, assContent);
-  return captionsPath;
+// Get video metadata using FFmpeg
+async function getVideoMetadata(inputPath: string): Promise<VideoMetadata> {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(inputPath, (err: any, metadata: any) => {
+      if (err) {
+        console.error("FFprobe error:", err);
+        reject(err);
+        return;
+      }
+      
+      const videoStream = metadata.streams.find((stream: any) => stream.codec_type === 'video');
+      if (!videoStream) {
+        reject(new Error("No video stream found"));
+        return;
+      }
+      
+      resolve({
+        width: videoStream.width,
+        height: videoStream.height,
+        duration: parseFloat(metadata.format.duration)
+      });
+    });
+  });
 }
 
-function groupWordsIntoSentences(words: TranscriptWord[]): TranscriptWord[][] {
-  const sentences: TranscriptWord[][] = [];
-  let currentSentence: TranscriptWord[] = [];
-
-  for (const word of words) {
-    currentSentence.push(word);
-    
-    if (
-      word.punctuated_word.match(/[.!?]$/) || 
-      currentSentence.length >= 8
-    ) {
-      sentences.push([...currentSentence]);
-      currentSentence = [];
-    }
-  }
-  
-  if (currentSentence.length > 0) {
-    sentences.push(currentSentence);
-  }
-  
-  return sentences;
-}
-
-function generateASSContent(
-  sentences: TranscriptWord[][],
-  selectionStart: number,
-  captionStyle: CaptionStyle
+// Generate ASS subtitle file for captions
+function generateCaptionsFile(
+  transcript: TranscriptWord[], 
+  selection: Selection, 
+  captionStyle: CaptionStyle, 
+  videoMetadata: VideoMetadata
 ): string {
-  const fontName = captionStyle.fontFamily || "Arial";
-  const fontSize = Math.round((captionStyle.fontSize || 2) * 50);
-  const primaryColor = hexToAssColor(captionStyle.textColor || "#ffffff");
-  const outlineColor = hexToAssColor(captionStyle.outlineColor || "#000000");
-  const backgroundColor = captionStyle.backgroundColor && captionStyle.backgroundColor !== "transparent" 
-    ? hexToAssColor(captionStyle.backgroundColor) 
-    : "&H00000000";
+  const tempSubPath = path.join(os.tmpdir(), `captions_${Date.now()}.ass`);
+  
+  // Convert hex colors to ASS format
+  const hexToAssColor = (hex: string): string => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `&H00${b.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${r.toString(16).padStart(2, '0')}`;
+  };
 
-  let assContent = `[Script Info]
+  // Calculate responsive font size based on video dimensions
+  const baseFontSize = Math.min(videoMetadata.width, videoMetadata.height) / 20;
+  const responsiveFontSize = Math.round(baseFontSize * captionStyle.fontSize);
+
+  const assHeader = `[Script Info]
 Title: Generated Captions
 ScriptType: v4.00+
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontName},${fontSize},${primaryColor},&H000000FF,${outlineColor},${backgroundColor},1,0,0,0,100,100,0,0,1,3,0,2,10,10,30,1
+Style: Default,${captionStyle.fontFamily.split(',')[0]},${responsiveFontSize},${hexToAssColor(captionStyle.textColor)},${hexToAssColor(captionStyle.highlightColor)},${hexToAssColor(captionStyle.outlineColor)},&H00000000,1,0,0,0,100,100,0,0,1,2,0,2,10,10,30,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
-  sentences.forEach((sentence) => {
-    if (sentence.length === 0) return;
+  // Format time for ASS (H:MM:SS.CC)
+  const formatTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const centiseconds = Math.floor((seconds % 1) * 100);
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+  };
+
+  // Filter transcript for selected timeframe and adjust timestamps
+  const selectedWords = transcript.filter(word => 
+    word.start >= selection.start && word.end <= selection.end
+  );
+
+  let events = '';
+  selectedWords.forEach(word => {
+    const adjustedStart = word.start - selection.start;
+    const adjustedEnd = word.end - selection.start;
     
-    const startTime = sentence[0].start - selectionStart;
-    const endTime = sentence[sentence.length - 1].end - selectionStart;
-    const text = sentence.map(w => w.punctuated_word).join(" ");
-    
-    const startAss = secondsToAssTime(Math.max(0, startTime));
-    const endAss = secondsToAssTime(endTime);
-    
-    assContent += `Dialogue: 0,${startAss},${endAss},Default,,0,0,0,,${text}\n`;
+    events += `Dialogue: 0,${formatTime(adjustedStart)},${formatTime(adjustedEnd)},Default,,0,0,0,,${word.punctuated_word}\n`;
   });
 
-  return assContent;
-}
-
-function generateEmptyASS(): string {
-  return `[Script Info]
-Title: Empty Captions
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,50,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,3,0,2,10,10,30,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-`;
-}
-
-function hexToAssColor(hex: string): string {
-  const cleanHex = hex.replace('#', '');
-  const r = cleanHex.substr(0, 2);
-  const g = cleanHex.substr(2, 2);
-  const b = cleanHex.substr(4, 2);
-  return `&H00${b}${g}${r}`;
-}
-
-function secondsToAssTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  const centiseconds = Math.floor((seconds % 1) * 100);
+  const assContent = assHeader + events;
+  fs.writeFileSync(tempSubPath, assContent, 'utf8');
   
-  return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
+  console.log("Generated captions file:", tempSubPath);
+  return tempSubPath;
 }
 
+// Process video with FFmpeg
 async function processVideoWithFFmpeg(
   inputPath: string,
-  startTime: number,
-  duration: number,
+  outputPath: string,
+  selection: Selection,
   captionsPath: string,
-  transform: any
-): Promise<string> {
-  const outputPath = `/tmp/output_${Date.now()}.mp4`;
-  
+  transform: Transform,
+  generatedBackground?: string
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    const aspectRatio = transform.aspectRatio || "16/9";
-    const [width, height] = aspectRatio === "9/16" ? [1080, 1920] : [1920, 1080];
+    console.log("Starting FFmpeg processing...");
     
     let command = ffmpeg(inputPath)
-      .seekInput(startTime)
-      .duration(duration)
-      .videoFilters([
-        `ass=${captionsPath}`,
-        `scale=${width}:${height}:force_original_aspect_ratio=1,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`
-      ])
+      .seekInput(selection.start)
+      .duration(selection.end - selection.start);
+
+    // Apply transformations - FIXED ASPECT RATIO HANDLING
+    let targetWidth: number;
+    let targetHeight: number;
+
+    switch (transform.aspectRatio) {
+      case "16/9":
+        targetWidth = 1920;
+        targetHeight = 1080;
+        break;
+      case "9/16":
+        targetWidth = 1080;
+        targetHeight = 1920;
+        break;
+      case "1/1":
+        targetWidth = 1080;
+        targetHeight = 1080;
+        break;
+      case "4/5":
+        targetWidth = 1080;
+        targetHeight = 1350;
+        break;
+      default:
+        console.error(`Invalid aspect ratio received: ${transform.aspectRatio}`);
+        reject(new Error(`Unsupported aspect ratio: ${transform.aspectRatio}`));
+        return;
+    }
+
+    // Video filters
+    let videoFilters = [
+      `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease`,
+      `pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:black`
+    ];
+
+    // Apply pan and zoom
+    if (transform.zoom !== 1 || transform.pan.x !== 0 || transform.pan.y !== 0) {
+      const zoomFilter = `scale=iw*${transform.zoom}:ih*${transform.zoom}`;
+      const panFilter = `crop=${targetWidth}:${targetHeight}:${transform.pan.x}:${transform.pan.y}`;
+      videoFilters = [zoomFilter, panFilter];
+    }
+
+    command = command.videoFilters(videoFilters);
+
+    // Add subtitles
+    command = command.outputOptions([
+      '-vf', `subtitles=${captionsPath.replace(/\\/g, '/')}:force_style='Alignment=2'`
+    ]);
+
+    // Output settings
+    command = command
       .videoCodec('libx264')
       .audioCodec('aac')
       .outputOptions([
-        '-preset fast',
-        '-crf 23',
-        '-movflags +faststart'
+        '-preset', 'medium',
+        '-crf', '23',
+        '-movflags', '+faststart'
       ])
       .output(outputPath);
 
-    if (transform.zoom && transform.zoom !== 1) {
-      const scale = transform.zoom;
-      command.videoFilters([
-        `scale=iw*${scale}:ih*${scale}`,
-        `ass=${captionsPath}`
-      ]);
-    }
-
     command
-      .on('end', () => {
-        resolve(outputPath);
-      })
-      .on('error', (err: Error) => {
-        reject(new Error(`FFmpeg processing failed: ${err.message}`));
+      .on('start', (commandLine: string) => {
+        console.log('FFmpeg command:', commandLine);
       })
       .on('progress', (progress: any) => {
-        console.log(`Processing: ${progress.percent}% done`);
+        console.log('Processing progress:', progress.percent + '%');
+      })
+      .on('end', () => {
+        console.log('FFmpeg processing completed');
+        resolve();
+      })
+      .on('error', (err: Error) => {
+        console.error('FFmpeg error:', err);
+        reject(err);
       })
       .run();
   });
 }
 
+// Upload processed clip to Firebase Storage
 async function uploadClipToStorage(filePath: string): Promise<string> {
-  const bucket = storage.bucket('clipforge-xl.appspot.com');
+  const bucket = storage.bucket('clipforge-xl.firebasestorage.app');
   const fileName = `clips/clip_${Date.now()}.mp4`;
   const file = bucket.file(fileName);
   
@@ -305,19 +269,79 @@ async function uploadClipToStorage(filePath: string): Promise<string> {
     },
   });
   
+  // Make file publicly accessible
   await file.makePublic();
   
-  return `https://storage.googleapis.com/clipforge-xl.appspot.com/${fileName}`;
+  const publicUrl = `https://storage.googleapis.com/clipforge-xl.firebasestorage.app/${fileName}`;
+  console.log("Clip uploaded to:", publicUrl);
+  
+  return publicUrl;
 }
 
-function cleanupTempFiles(filePaths: string[]): void {
-  filePaths.forEach(filePath => {
+// Main render function
+export const renderVideo = functions
+  .runWith({
+    timeoutSeconds: 540,
+    memory: "8GB",
+  })
+  .https.onCall(async (data, context) => {
+    const tempFiles: string[] = [];
+    
     try {
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      console.log("Starting video render with data:", JSON.stringify(data, null, 2));
+      
+      const { videoUrl, transcript, selection, captionStyle, transform, generatedBackground } = data;
+      
+      // Validate required data
+      if (!videoUrl || !transcript || !selection || !captionStyle || !transform) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing required data');
       }
+      
+      // Download video to temp directory
+      const inputPath = await downloadVideoToTemp(videoUrl);
+      tempFiles.push(inputPath);
+      
+      // Get video metadata
+      const videoMetadata = await getVideoMetadata(inputPath);
+      console.log("Video metadata:", videoMetadata);
+      
+      // Generate captions file
+      const captionsPath = generateCaptionsFile(transcript, selection, captionStyle, videoMetadata);
+      tempFiles.push(captionsPath);
+      
+      // Set output path
+      const outputPath = path.join(os.tmpdir(), `output_${Date.now()}.mp4`);
+      tempFiles.push(outputPath);
+      
+      // Process video with FFmpeg
+      await processVideoWithFFmpeg(
+        inputPath,
+        outputPath,
+        selection,
+        captionsPath,
+        transform,
+        generatedBackground
+      );
+      
+      // Upload processed clip
+      const clipUrl = await uploadClipToStorage(outputPath);
+      
+      return { videoUrl: clipUrl };
+      
     } catch (error) {
-      console.warn(`Failed to cleanup temp file ${filePath}:`, error);
+      console.error("Render error:", error);
+      throw new functions.https.HttpsError('internal', `Render failed: ${error}`);
+    } finally {
+      // Cleanup temp files
+      tempFiles.forEach(filePath => {
+        try {
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log("Cleaned up:", filePath);
+          }
+        } catch (cleanupError) {
+          console.warn("Failed to cleanup file:", filePath, cleanupError);
+        }
+      });
     }
   });
-}

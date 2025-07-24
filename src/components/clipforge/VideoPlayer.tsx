@@ -39,7 +39,10 @@ export function VideoPlayer({
   transform,
   generatedBackground,
 }: VideoPlayerProps) {
-  const [dynamicFontSize, setDynamicFontSize] = useState(fontSize);
+  // Convert slider value (1-5) to rem units for display
+  const getDisplayFontSize = (sliderValue: number): number => {
+    return sliderValue * 0.8; // 1=0.8rem, 2.5=2rem, 5=4rem
+  };
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -74,13 +77,28 @@ export function VideoPlayer({
   }, [videoRef, setIsPlaying]);
 
   const getCurrentLine = () => {
-    const activeWordIndex = transcript.findIndex(word => currentTime >= word.start && currentTime < word.end);
+    // Only show captions if there's a selection and we're within that timeframe
+    if (!selection) return null;
+    
+    // Filter transcript to only include words within the selection
+    const selectedTranscript = transcript.filter(word => 
+      word.start >= selection.start && word.end <= selection.end
+    );
+    
+    // Adjust current time to be relative to selection start
+    const relativeTime = currentTime;
+    
+    // Find active word within the selected transcript
+    const activeWordIndex = selectedTranscript.findIndex(word => 
+      relativeTime >= word.start && relativeTime < word.end
+    );
+    
     if (activeWordIndex === -1) return null;
     
-    // Split transcript into sentences
+    // Split selected transcript into sentences
     const sentences = [];
     let currentSentence = [];
-    for (const word of transcript) {
+    for (const word of selectedTranscript) {
         currentSentence.push(word);
         if (word.punctuated_word.endsWith('.') || word.punctuated_word.endsWith('?') || word.punctuated_word.endsWith('!')) {
             sentences.push(currentSentence);
@@ -91,7 +109,7 @@ export function VideoPlayer({
     
     // Find the sentence that the current word belongs to
     for (const sentence of sentences) {
-        if (sentence.some(word => word.start === transcript[activeWordIndex].start)) {
+        if (sentence.some(word => word.start === selectedTranscript[activeWordIndex].start)) {
             return sentence;
         }
     }
@@ -100,16 +118,6 @@ export function VideoPlayer({
   };
 
   const currentLine = getCurrentLine();
-
-  useEffect(() => {
-    if (currentLine) {
-      const lineLength = currentLine.map(w => w.punctuated_word).join(" ").length;
-      // Adjust font size based on line length
-      const newSize = Math.max(1, fontSize - (lineLength / 10)); // Simple formula, can be adjusted
-      setDynamicFontSize(newSize);
-    }
-  }, [currentLine, fontSize]);
-
   const [aspectRatioWidth, aspectRatioHeight] = transform.aspectRatio.split('/').map(Number);
 
   return (
@@ -135,7 +143,7 @@ export function VideoPlayer({
               className="font-bold text-center"
               style={{
                 fontFamily: fontFamily,
-                fontSize: `${dynamicFontSize}rem`,
+                fontSize: `${getDisplayFontSize(fontSize)}rem`,
                 color: textColor,
                 lineHeight: 1.2,
                 whiteSpace: 'nowrap',

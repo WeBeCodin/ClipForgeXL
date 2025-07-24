@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -30,12 +29,12 @@ export default function Home() {
   const [generatedBackground, setGeneratedBackground] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   
-  // Caption styling state
+  // Caption styling state - Fixed initial font size
   const [textColor, setTextColor] = useState("#FFFFFF");
   const [highlightColor, setHighlightColor] = useState("#FFFF00");
   const [outlineColor, setOutlineColor] = useState("#000000");
   const [fontFamily, setFontFamily] = useState("Inter");
-  const [fontSize, setFontSize] = useState(3);
+  const [fontSize, setFontSize] = useState(2.5); // Changed from 3 to 2.5 for better default (40px)
   
   // Transformation state
   const [transform, setTransform] = useState<Transform>({
@@ -43,7 +42,6 @@ export default function Home() {
     zoom: 1,
     aspectRatio: "16/9",
   });
-
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const unsubscribeFirestoreRef = useRef<(() => void) | null>(null);
