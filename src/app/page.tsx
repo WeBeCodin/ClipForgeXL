@@ -181,9 +181,25 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Error processing files:", error);
+      
+      // Provide specific error messages for transcript issues
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      let title = "Processing Error";
+      let description = errorMessage;
+      
+      if (errorMessage.includes("transcript")) {
+        title = "Transcript File Error";
+        description = errorMessage;
+      } else if (errorMessage.includes("JSON")) {
+        title = "Invalid Transcript Format";
+        description = `The uploaded file is not a valid transcript. ${errorMessage}`;
+      } else {
+        description = "Error processing uploaded files. Please check your files and try again.";
+      }
+      
       toast({ 
-        title: "Processing Error", 
-        description: "Error processing transcript file.", 
+        title,
+        description,
         variant: "destructive" 
       });
       setAppState("error");

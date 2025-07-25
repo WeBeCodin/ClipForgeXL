@@ -11,8 +11,13 @@ export interface ParsedTranscript {
 
 export class TranscriptParser {
   static async parseFile(file: File): Promise<ParsedTranscript> {
-    const text = await file.text();
+    const text = await this.extractTextFromFile(file);
     const extension = file.name.toLowerCase().split('.').pop();
+
+    // Validate file is not empty
+    if (!text.trim()) {
+      throw new Error(`The file "${file.name}" appears to be empty.`);
+    }
 
     switch (extension) {
       case 'srt':
@@ -20,11 +25,48 @@ export class TranscriptParser {
       case 'vtt':
         return this.parseVTT(text);
       case 'json':
-        return this.parseJSON(text);
+        return this.parseJSON(text, file.name);
       case 'txt':
+      case 'doc':
+      case 'docx':
+      case 'pdf':
         return this.parseText(text);
       default:
-        throw new Error(`Unsupported transcript format: ${extension}`);
+        throw new Error(`Unsupported transcript format: "${extension}". Supported formats are: SRT, VTT, JSON, TXT, DOC, DOCX, and PDF.`);
+    }
+  }
+
+  private static async extractTextFromFile(file: File): Promise<string> {
+    const extension = file.name.toLowerCase().split('.').pop();
+    
+    switch (extension) {
+      case 'doc':
+      case 'docx':
+        return this.extractTextFromWord(file);
+      case 'pdf':
+        return this.extractTextFromPDF(file);
+      default:
+        return file.text();
+    }
+  }
+
+  private static async extractTextFromWord(file: File): Promise<string> {
+    try {
+      // For browser compatibility, we'll use a different approach
+      // For now, treat Word docs as plain text and ask users to copy-paste
+      throw new Error(`Word document processing requires server-side support. Please save your document as a .txt file or copy the text into a .txt file for now.`);
+    } catch (error) {
+      throw new Error(`Failed to read Word document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private static async extractTextFromPDF(file: File): Promise<string> {
+    try {
+      // For browser compatibility, we'll use a different approach
+      // For now, treat PDFs as plain text and ask users to copy-paste
+      throw new Error(`PDF processing requires server-side support. Please copy the text from your PDF into a .txt file for now.`);
+    } catch (error) {
+      throw new Error(`Failed to read PDF document: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -100,38 +142,82 @@ export class TranscriptParser {
     return { words };
   }
 
-  private static parseJSON(content: string): ParsedTranscript {
+  private static parseJSON(content: string, fileName?: string): ParsedTranscript {
     try {
+      // Check if content looks like JSON
+      const trimmedContent = content.trim();
+      if (!trimmedContent.startsWith('{') && !trimmedContent.startsWith('[')) {
+        throw new Error(`File does not appear to be valid JSON. Content starts with: "${trimmedContent.substring(0, 50)}..."`);
+      }
+
       const data = JSON.parse(content);
       
       // Handle different JSON formats
       if (data.words && Array.isArray(data.words)) {
+        // Validate word structure
+        if (data.words.length > 0 && !this.isValidWordFormat(data.words[0])) {
+          throw new Error('JSON transcript format is incorrect. Expected words with "word", "start", "end", and "punctuated_word" properties.');
+        }
         return data as ParsedTranscript;
       }
       
       if (Array.isArray(data)) {
+        // Validate array structure
+        if (data.length > 0 && !this.isValidWordFormat(data[0])) {
+          throw new Error('JSON transcript format is incorrect. Expected array of words with "word", "start", "end", and "punctuated_word" properties.');
+        }
         return { words: data };
       }
       
-      throw new Error('Invalid JSON transcript format');
+      throw new Error('Invalid JSON transcript format. Expected either {words: [...]} or [...]');
     } catch (error) {
-      throw new Error('Failed to parse JSON transcript: ' + error);
+      if (error instanceof SyntaxError) {
+        const fileInfo = fileName ? ` in file "${fileName}"` : '';
+        throw new Error(`Failed to parse JSON transcript${fileInfo}: ${error.message}`);
+      }
+      throw error;
     }
   }
 
+  private static isValidWordFormat(word: any): boolean {
+    return word && 
+           typeof word.word === 'string' && 
+           typeof word.start === 'number' && 
+           typeof word.end === 'number' && 
+           typeof word.punctuated_word === 'string';
+  }
+
   private static parseText(content: string): ParsedTranscript {
-    // Simple text file - create basic word-level timing
+    // Enhanced text parsing for documents
     const words: TranscriptWord[] = [];
-    const text = content.trim();
-    const wordsArray = text.split(/\s+/).filter(w => w.length > 0);
     
-    // Estimate 2 words per second
-    const wordsPerSecond = 2;
+    // Clean up the text - remove extra whitespace, normalize line breaks
+    const cleanedText = content
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\n+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    const wordsArray = cleanedText.split(/\s+/).filter(w => w.length > 0);
+    
+    if (wordsArray.length === 0) {
+      throw new Error('No readable text found in the document.');
+    }
+    
+    // Estimate timing based on average speaking pace
+    // Average: 150-160 words per minute = ~2.5 words per second
+    const wordsPerSecond = 2.5;
     const wordDuration = 1 / wordsPerSecond;
 
     wordsArray.forEach((word, index) => {
+      const cleanWord = word.replace(/[^\w']/g, '').toLowerCase();
+      
+      // Skip empty words after cleaning
+      if (cleanWord.length === 0) return;
+      
       words.push({
-        word: word.replace(/[^\w']/g, '').toLowerCase(),
+        word: cleanWord,
         start: index * wordDuration,
         end: (index + 1) * wordDuration,
         punctuated_word: word

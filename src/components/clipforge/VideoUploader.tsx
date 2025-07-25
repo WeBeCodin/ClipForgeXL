@@ -107,7 +107,11 @@ export function VideoUploader({ onFileSelect, onDemoVideoSelect, status, progres
                   <span className="font-medium">Transcript (Optional)</span>
                 </div>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Upload SRT, VTT, or JSON transcript for faster processing
+                  Upload transcript files: SRT, VTT, JSON, or TXT. 
+                  <br />
+                  <strong>For Word/PDF:</strong> Please copy text and save as .txt file.
+                  <br />
+                  <strong>JSON format:</strong> {"{"}"words": [{"{"}"word": "hello", "start": 0.5, "end": 1.0, "punctuated_word": "Hello"{"}"}]{"}"}
                 </p>
                 {selectedTranscript ? (
                   <div className="text-sm text-muted-foreground">
@@ -123,7 +127,7 @@ export function VideoUploader({ onFileSelect, onDemoVideoSelect, status, progres
                 <input 
                   id="transcript-upload" 
                   type="file" 
-                  accept=".srt,.vtt,.json,.txt" 
+                  accept=".srt,.vtt,.json,.txt,.doc,.docx,.pdf" 
                   className="hidden" 
                   onChange={handleTranscriptChange} 
                 />
