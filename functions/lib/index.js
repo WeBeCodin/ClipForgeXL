@@ -42,8 +42,8 @@ admin.initializeApp();
 const db = admin.firestore();
 // This function is triggered when a file is uploaded to the /uploads/ GCS folder.
 exports.onVideoUpload = functions.runWith({
-    timeoutSeconds: 540, // 9 minutes
-    memory: "1GB",
+    timeoutSeconds: 540,
+    memory: "2GB",
 }).storage.object().onFinalize(async (object) => {
     const bucketName = object.bucket;
     const filePath = object.name;
@@ -91,7 +91,7 @@ exports.onVideoUpload = functions.runWith({
         });
     }
 });
-// Export the renderVideo function from the FFmpeg processor
+// Export the renderVideo function if it exists
 var ffmpeg_processor_1 = require("./video/ffmpeg-processor");
 Object.defineProperty(exports, "renderVideo", { enumerable: true, get: function () { return ffmpeg_processor_1.renderVideo; } });
 //# sourceMappingURL=index.js.map

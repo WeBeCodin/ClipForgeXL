@@ -1,7 +1,26 @@
 {
-  "functions": {
-    "source": "functions",
-    "runtime": "nodejs20",
-    "location": "us-central1"
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ],
+  "apphosting": {
+    "source": {
+      "projectId": "clipforge-xl",
+      "locationId": "us-central1"
+    }
   }
 }

@@ -12,6 +12,14 @@ async function fileToGenerativePart(bucketName, filePath) {
     if (!mimeType) {
         throw new Error(`Could not determine MIME type for file: ${filePath}`);
     }
+    // Check file size to prevent memory issues
+    const fileSizeBytes = typeof metadata.size === 'string' ? parseInt(metadata.size) : metadata.size || 0;
+    const fileSizeMB = fileSizeBytes / (1024 * 1024);
+    console.log(`Processing video: ${filePath}, Size: ${fileSizeMB.toFixed(2)}MB`);
+    // Limit file size to prevent timeouts
+    if (fileSizeMB > 200) {
+        throw new Error(`File too large for processing: ${fileSizeMB.toFixed(2)}MB. Maximum supported size is 200MB.`);
+    }
     const [buffer] = await file.download();
     return {
         inlineData: {
@@ -25,8 +33,8 @@ async function transcribeVideo(bucketName, filePath) {
     const model = genAI.getGenerativeModel({
         model: "gemini-1.5-pro-latest",
         generationConfig: {
-            maxOutputTokens: 32768, // Increase token limit for complete transcription
-            temperature: 0.1, // Lower temperature for more consistent results
+            maxOutputTokens: 32768,
+            temperature: 0.1,
         }
     });
     const videoPart = await fileToGenerativePart(bucketName, filePath);

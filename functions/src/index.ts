@@ -9,8 +9,8 @@ const db = admin.firestore();
 
 // This function is triggered when a file is uploaded to the /uploads/ GCS folder.
 export const onVideoUpload = functions.runWith({
-    timeoutSeconds: 540, // 9 minutes
-    memory: "1GB",
+    timeoutSeconds: 540,
+    memory: "2GB",
 }).storage.object().onFinalize(async (object: any) => {
     const bucketName = object.bucket;
     const filePath = object.name;
@@ -70,5 +70,5 @@ export const onVideoUpload = functions.runWith({
     }
 });
 
-// Export the renderVideo function from the FFmpeg processor
+// Export the renderVideo function if it exists
 export { renderVideo } from './video/ffmpeg-processor';
