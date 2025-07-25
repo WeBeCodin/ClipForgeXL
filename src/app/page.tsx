@@ -67,75 +67,127 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, [toast]);
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (videoFile: File, transcriptFile?: File) => {
     if (!user) {
         toast({ title: "Authentication Required", description: "Please wait until you are signed in to upload.", variant: "destructive" });
         return;
     }
 
     setAppState("uploading");
-    const uniqueFileName = `${uuidv4()}_${file.name}`;
-    const storagePath = `uploads/${user.uid}/${uniqueFileName}`;
-    const storageRef = ref(storage, storagePath);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    
+    try {
+      // If transcript is provided, parse it locally
+      if (transcriptFile) {
+        const { TranscriptParser } = await import("@/lib/transcript-parser");
+        const parsedTranscript = await TranscriptParser.parseFile(transcriptFile);
+        
+        // Upload video and set transcript directly
+        const uniqueFileName = `${uuidv4()}_${videoFile.name}`;
+        const storagePath = `uploads/${user.uid}/${uniqueFileName}`;
+        const storageRef = ref(storage, storagePath);
+        const uploadTask = uploadBytesResumable(storageRef, videoFile);
 
-    const videoDocId = `${user.uid}_${uniqueFileName}`;
-    const videoDocRef = doc(db, "videos", videoDocId);
-
-    // Listen for Firestore changes
-    unsubscribeFirestoreRef.current = onSnapshot(videoDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            switch (data.status) {
-                case "processing":
-                    setAppState("processing");
-                    break;
-                case "completed":
-                    if (Array.isArray(data.transcription)) {
-                        setTranscript(data.transcription);
-                    } else {
-                        console.error("Firestore transcription data is not an array:", data.transcription);
-                        toast({ title: "Invalid Transcript Format", description: "The transcript data is outdated. Please re-upload the video to get word-level timestamps.", variant: "destructive" });
-                        setTranscript([]); // Set to empty to prevent crash
-                    }
-                    // Get the downloadable URL for the original video to play it
-                    getDownloadURL(ref(storage, data.gcsPath))
-                      .then(url => {
-                        setVideoUrl(url);
-                        setAppState("ready");
-                      })
-                      .catch(error => {
-                        console.error("Error getting download URL", error);
-                        toast({ title: "Playback Error", description: "Could not load video.", variant: "destructive" });
-                        setAppState("error");
-                      });
-                    unsubscribeFirestoreRef.current?.(); // Stop listening after completion
-                    break;
-                case "failed":
-                    toast({ title: "Transcription Failed", description: data.error || "An unknown error occurred.", variant: "destructive" });
-                    setAppState("error");
-                    unsubscribeFirestoreRef.current?.(); // Stop listening on failure
-                    break;
-            }
-        }
-    });
-
-    uploadTask.on('state_changed',
-        (snapshot) => {
+        uploadTask.on('state_changed', 
+          (snapshot) => {
             const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
             setProgress(progress);
-        },
-        (error) => {
-            console.error("Upload error", error);
-            toast({ title: "Upload Failed", description: "Could not upload your video.", variant: "destructive" });
+          }, 
+          (error) => {
+            console.error("Upload error:", error);
+            toast({ title: "Upload Failed", description: "Error uploading video file.", variant: "destructive" });
             setAppState("error");
-            unsubscribeFirestoreRef.current?.();
-        },
-        () => {
-            // Upload completed successfully, now waiting for processing
-            toast({ title: "Upload Complete", description: "Your video is now being processed." });
-        }
-    );
+          }, 
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              setVideoUrl(downloadURL);
+              setTranscript(parsedTranscript.words);
+              setAppState("ready");
+              toast({ 
+                title: "Upload Complete", 
+                description: "Video uploaded and transcript processed successfully!",
+                variant: "default" 
+              });
+            } catch (error) {
+              console.error("Error getting download URL:", error);
+              toast({ title: "Upload Error", description: "Could not finalize upload.", variant: "destructive" });
+              setAppState("error");
+            }
+          }
+        );
+      } else {
+        // Original flow - upload video and transcribe with AI
+        const uniqueFileName = `${uuidv4()}_${videoFile.name}`;
+        const storagePath = `uploads/${user.uid}/${uniqueFileName}`;
+        const storageRef = ref(storage, storagePath);
+        const uploadTask = uploadBytesResumable(storageRef, videoFile);
+
+        const videoDocId = `${user.uid}_${uniqueFileName}`;
+        const videoDocRef = doc(db, "videos", videoDocId);
+
+        // Listen for Firestore changes
+        unsubscribeFirestoreRef.current = onSnapshot(videoDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                switch (data.status) {
+                    case "processing":
+                        setAppState("processing");
+                        break;
+                    case "completed":
+                        if (Array.isArray(data.transcription)) {
+                            setTranscript(data.transcription);
+                        } else {
+                            console.error("Firestore transcription data is not an array:", data.transcription);
+                            toast({ title: "Invalid Transcript Format", description: "The transcript data is outdated. Please re-upload the video to get word-level timestamps.", variant: "destructive" });
+                            setTranscript([]); // Set to empty to prevent crash
+                        }
+                        // Get the downloadable URL for the original video to play it
+                        getDownloadURL(ref(storage, data.gcsPath))
+                          .then(url => {
+                            setVideoUrl(url);
+                            setAppState("ready");
+                          })
+                          .catch(error => {
+                            console.error("Error getting download URL", error);
+                            toast({ title: "Playback Error", description: "Could not load video.", variant: "destructive" });
+                            setAppState("error");
+                          });
+                        unsubscribeFirestoreRef.current?.(); // Stop listening after completion
+                        break;
+                    case "failed":
+                        toast({ title: "Transcription Failed", description: data.error || "An unknown error occurred.", variant: "destructive" });
+                        setAppState("error");
+                        unsubscribeFirestoreRef.current?.(); // Stop listening on failure
+                        break;
+                }
+            }
+        });
+
+        uploadTask.on('state_changed', 
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setProgress(progress);
+            }, 
+            (error) => {
+                console.error("Upload error:", error);
+                toast({ title: "Upload Failed", description: "Error uploading video file.", variant: "destructive" });
+                setAppState("error");
+            }, 
+            () => {
+                // Upload completed successfully, now the Cloud Function will handle transcription
+                console.log("Upload successful, waiting for transcription...");
+            }
+        );
+      }
+    } catch (error) {
+      console.error("Error processing files:", error);
+      toast({ 
+        title: "Processing Error", 
+        description: "Error processing transcript file.", 
+        variant: "destructive" 
+      });
+      setAppState("error");
+    }
   };
 
   const handleDemoVideoSelect = () => {
