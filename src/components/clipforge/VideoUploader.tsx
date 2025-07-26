@@ -1,7 +1,13 @@
 "use client";
 
 import { ChangeEvent, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { UploadCloud, Loader2, FileText, Video } from "lucide-react";
@@ -9,13 +15,26 @@ import { UploadCloud, Loader2, FileText, Video } from "lucide-react";
 type VideoUploaderProps = {
   onFileSelect: (video: File, transcript?: File) => void;
   onDemoVideoSelect: () => void;
-  status: "idle" | "authenticating" | "uploading" | "processing" | "ready" | "error";
+  status:
+    | "idle"
+    | "authenticating"
+    | "uploading"
+    | "processing"
+    | "ready"
+    | "error";
   progress: number;
 };
 
-export function VideoUploader({ onFileSelect, onDemoVideoSelect, status, progress }: VideoUploaderProps) {
+export function VideoUploader({
+  onFileSelect,
+  onDemoVideoSelect,
+  status,
+  progress,
+}: VideoUploaderProps) {
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
-  const [selectedTranscript, setSelectedTranscript] = useState<File | null>(null);
+  const [selectedTranscript, setSelectedTranscript] = useState<File | null>(
+    null
+  );
 
   const handleVideoChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -42,35 +61,44 @@ export function VideoUploader({ onFileSelect, onDemoVideoSelect, status, progres
   const statusMessages = {
     authenticating: "Authenticating...",
     uploading: "Uploading files...",
-    processing: selectedTranscript ? "Processing video with transcript..." : "Processing and transcribing...",
+    processing: selectedTranscript
+      ? "Processing video with transcript..."
+      : "Processing and transcribing...",
     error: "An error occurred. Please refresh and try again.",
     idle: "",
     ready: "",
   };
-  
-  const isInteractive = status === 'idle' || status === 'ready';
+
+  const isInteractive = status === "idle" || status === "ready";
 
   return (
     <div className="flex-1 flex items-center justify-center p-4">
       <Card className="w-full max-w-lg text-center shadow-2xl">
         <CardHeader>
           <div className="mx-auto bg-accent/10 p-4 rounded-full mb-4">
-             {status === 'authenticating' || status === 'uploading' || status === 'processing' ? (
-                <Loader2 className="w-10 h-10 text-accent animate-spin" />
-             ) : (
-                <UploadCloud className="w-10 h-10 text-accent" />
-             )}
+            {status === "authenticating" ||
+            status === "uploading" ||
+            status === "processing" ? (
+              <Loader2 className="w-10 h-10 text-accent animate-spin" />
+            ) : (
+              <UploadCloud className="w-10 h-10 text-accent" />
+            )}
           </div>
-          <CardTitle className="font-headline text-3xl">Upload Your Content</CardTitle>
+          <CardTitle className="font-headline text-3xl">
+            Upload Your Content
+          </CardTitle>
           <CardDescription>
-            Upload your video and optionally a transcript file for faster, more accurate processing.
+            Upload your video and optionally a transcript file for faster, more
+            accurate processing.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {!isInteractive ? (
             <div className="space-y-2">
               <p className="text-muted-foreground">{statusMessages[status]}</p>
-              {status === 'uploading' && <Progress value={progress} className="w-full" />}
+              {status === "uploading" && (
+                <Progress value={progress} className="w-full" />
+              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -91,12 +119,12 @@ export function VideoUploader({ onFileSelect, onDemoVideoSelect, status, progres
                     </label>
                   </Button>
                 )}
-                <input 
-                  id="video-upload" 
-                  type="file" 
-                  accept="video/*" 
-                  className="hidden" 
-                  onChange={handleVideoChange} 
+                <input
+                  id="video-upload"
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={handleVideoChange}
                 />
               </div>
 
@@ -107,11 +135,14 @@ export function VideoUploader({ onFileSelect, onDemoVideoSelect, status, progres
                   <span className="font-medium">Transcript (Optional)</span>
                 </div>
                 <p className="text-xs text-muted-foreground mb-2">
-                  Upload transcript files: SRT, VTT, JSON, or TXT. 
+                  Upload transcript files: SRT, VTT, JSON, or TXT.
                   <br />
-                  <strong>For Word/PDF:</strong> Please copy text and save as .txt file.
+                  <strong>For Word/PDF:</strong> Please copy text and save as
+                  .txt file.
                   <br />
-                  <strong>JSON format:</strong> {"{"}"words": [{"{"}"word": "hello", "start": 0.5, "end": 1.0, "punctuated_word": "Hello"{"}"}]{"}"}
+                  <strong>JSON format:</strong> {"{"}"words": [{"{"}"word":
+                  "hello", "start": 0.5, "end": 1.0, "punctuated_word": "Hello"
+                  {"}"}]{"}"}
                 </p>
                 {selectedTranscript ? (
                   <div className="text-sm text-muted-foreground">
@@ -119,31 +150,38 @@ export function VideoUploader({ onFileSelect, onDemoVideoSelect, status, progres
                   </div>
                 ) : (
                   <Button variant="outline" size="sm" asChild>
-                    <label htmlFor="transcript-upload" className="cursor-pointer">
+                    <label
+                      htmlFor="transcript-upload"
+                      className="cursor-pointer"
+                    >
                       Select Transcript
                     </label>
                   </Button>
                 )}
-                <input 
-                  id="transcript-upload" 
-                  type="file" 
-                  accept=".srt,.vtt,.json,.txt,.doc,.docx,.pdf" 
-                  className="hidden" 
-                  onChange={handleTranscriptChange} 
+                <input
+                  id="transcript-upload"
+                  type="file"
+                  accept=".srt,.vtt,.json,.txt,.doc,.docx,.pdf"
+                  className="hidden"
+                  onChange={handleTranscriptChange}
                 />
               </div>
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                <Button 
-                  size="lg" 
-                  onClick={handleUpload} 
+                <Button
+                  size="lg"
+                  onClick={handleUpload}
                   disabled={!selectedVideo}
                   className="min-w-[120px]"
                 >
                   Upload {selectedTranscript ? "& Process" : "& Transcribe"}
                 </Button>
-                <Button size="lg" variant="secondary" onClick={onDemoVideoSelect}>
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  onClick={onDemoVideoSelect}
+                >
                   Use Demo Video
                 </Button>
               </div>

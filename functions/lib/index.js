@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -41,10 +41,13 @@ const path = __importStar(require("path"));
 admin.initializeApp();
 const db = admin.firestore();
 // This function is triggered when a file is uploaded to the /uploads/ GCS folder.
-exports.onVideoUpload = functions.runWith({
+exports.onVideoUpload = functions
+    .runWith({
     timeoutSeconds: 540,
     memory: "2GB",
-}).storage.object().onFinalize(async (object) => {
+})
+    .storage.object()
+    .onFinalize(async (object) => {
     const bucketName = object.bucket;
     const filePath = object.name;
     const { logger } = functions;
@@ -52,11 +55,11 @@ exports.onVideoUpload = functions.runWith({
         logger.log(`Not a valid video upload or not in the correct folder: ${filePath}`);
         return null;
     }
-    if (filePath.endsWith('/')) {
+    if (filePath.endsWith("/")) {
         logger.log(`This is a folder marker, skipping: ${filePath}`);
         return null;
     }
-    const uid = filePath.split('/')[1];
+    const uid = filePath.split("/")[1];
     if (!uid) {
         logger.error(`Could not determine UID from path: ${filePath}`);
         return null;

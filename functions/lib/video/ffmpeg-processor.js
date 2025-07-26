@@ -38,7 +38,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.renderVideo = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
-const storage_1 = require("@google-cloud/storage");
+const admin = __importStar(require("firebase-admin"));
 const path = __importStar(require("path"));
 const os = __importStar(require("os"));
 const fs = __importStar(require("fs"));
@@ -46,7 +46,8 @@ const fluent_ffmpeg_1 = __importDefault(require("fluent-ffmpeg"));
 const ffmpeg_1 = __importDefault(require("@ffmpeg-installer/ffmpeg"));
 // Set FFmpeg path
 fluent_ffmpeg_1.default.setFfmpegPath(ffmpeg_1.default.path);
-const storage = new storage_1.Storage();
+// Use Firebase Admin Storage (which inherits service account permissions)
+const storage = admin.storage();
 // Helper function to download video from GCS to temp directory
 async function downloadVideoToTemp(videoUrl) {
     console.log("Downloading video from:", videoUrl);

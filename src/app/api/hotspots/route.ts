@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -8,7 +7,8 @@ export async function POST(req: NextRequest) {
   try {
     const { transcript } = await req.json();
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
+    // Try gemini-1.5-flash first (faster and less likely to be overloaded)
+    let model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `
       You are an expert video editor. I will provide you with a timestamped transcript in JSON format. 
@@ -22,16 +22,51 @@ export async function POST(req: NextRequest) {
       ${JSON.stringify(transcript, null, 2)}
     `;
 
-    const result = await model.generateContent(prompt);
+    let result;
+    try {
+      result = await model.generateContent(prompt);
+    } catch (error: any) {
+      // If gemini-1.5-flash is overloaded, try gemini-1.5-pro
+      if (error.status === 503) {
+        console.log("Gemini Flash overloaded, trying Pro model...");
+        model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+        result = await model.generateContent(prompt);
+      } else {
+        throw error;
+      }
+    }
+
     const response = await result.response;
     const text = response.text();
 
     // Extract the JSON array from the response
-    const jsonArray = JSON.parse(text.match(/(\[.*\])/s)![0]);
+    const jsonMatch = text.match(/(\[.*\])/s);
+    if (!jsonMatch) {
+      throw new Error("No valid JSON array found in response");
+    }
+
+    const jsonArray = JSON.parse(jsonMatch[0]);
 
     return NextResponse.json(jsonArray);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating hotspots:", error);
-    return NextResponse.json({ error: "Failed to generate hotspots" }, { status: 500 });
+
+    if (error.status === 503) {
+      return NextResponse.json(
+        {
+          error:
+            "AI service is temporarily overloaded. Please try again in a few moments.",
+        },
+        { status: 503 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        error: "Failed to generate hotspots",
+        details: error.message,
+      },
+      { status: 500 }
+    );
   }
 }
